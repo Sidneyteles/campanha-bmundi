@@ -126,6 +126,7 @@ const CAMPANHA = {
   garrafasPorCaixa: 6,
   minimoIndividual: 0.15,
   linhasNecessarias: 3,
+  numVendedores: 4,          // usado para dividir a meta da equipe em metas individuais
   linhas: [
     { id:'reserva',    nome:'Reserva de los Andes', pontos:5,  meta:3500, preco:29.90, bonusMax:700,
       vinhos:['Malbec','Cabernet Sauvignon','Chardonnay','Malbec Branco'] },
@@ -143,7 +144,8 @@ const LINHA = Object.fromEntries(CAMPANHA.linhas.map(l => [l.id, l]));
    2. CÁLCULO DA CAMPANHA
    ===================================================================== */
 // [CALC-INICIO]
-function calcular(lancamentos, participantes) {
+function calcular(lancamentos, participantes, bonusFixo) {
+  // bonusFixo: bônus já calculado pelo banco (visão do vendedor, que só enxerga as próprias vendas)
   const ids = new Set(participantes.map(p => p.id));
   const validos = lancamentos.filter(l => ids.has(l.vendedor_id) && LINHA[l.linha]);
   const nVend = Math.max(participantes.length, 1);
@@ -171,7 +173,8 @@ function calcular(lancamentos, participantes) {
     const base = sinal * cx * cfg.pontos;
     let bonus = 0;
     if (sinal === 1 && l.cliente_novo) {
-      bonus = Math.min(cx * cfg.pontos, restanteBonus[l.linha]);
+      if (bonusFixo) bonus = Number(bonusFixo[l.id]) || 0;
+      else bonus = Math.min(cx * cfg.pontos, restanteBonus[l.linha]);
       restanteBonus[l.linha] -= bonus;
     }
     const valor = sinal * cx * CAMPANHA.garrafasPorCaixa * cfg.preco;
@@ -194,7 +197,7 @@ function calcular(lancamentos, participantes) {
     e.faltamCaixas = e.faltamPontos / cfg.pontos;
     e.bonusRestante = restanteBonus[cfg.id];
     e.minimo = cfg.meta * CAMPANHA.minimoIndividual;
-    e.sugerido = cfg.meta / nVend;
+    e.sugerido = cfg.meta / CAMPANHA.numVendedores;
   });
 
   const linhasAtingidas = CAMPANHA.linhas.filter(l => equipe[l.id].atingida).map(l => l.id);
@@ -208,8 +211,15 @@ function calcular(lancamentos, participantes) {
       x.pctMinimo = x.pontos / x.minimo;
       x.faltamPontos = Math.max(0, x.minimo - x.pontos);
       x.faltamCaixas = x.faltamPontos / cfg.pontos;
+      x.meta = equipe[cfg.id].sugerido;
+      x.metaCaixas = x.meta / cfg.pontos;
+      x.metaOk = x.pontos >= x.meta;
+      x.pctMeta = x.pontos / x.meta;
+      x.faltamMeta = Math.max(0, x.meta - x.pontos);
+      x.faltamMetaCaixas = x.faltamMeta / cfg.pontos;
     });
     v.linhasMinOk = CAMPANHA.linhas.filter(l => v.linhas[l.id].minOk).map(l => l.id);
+    v.linhasMetaOk = CAMPANHA.linhas.filter(l => v.linhas[l.id].metaOk).map(l => l.id);
     const okNasAtingidas = linhasAtingidas.filter(id => v.linhas[id].minOk).length;
     if (equipeClassificada) {
       v.status = okNasAtingidas >= CAMPANHA.linhasNecessarias ? 'garantido' : 'abaixo';
@@ -239,6 +249,7 @@ function criarBancoSupabase() {
     async inserir(l) { return tratar(await sb.from('mendoza_lancamentos').insert(l).select().single()); },
     async atualizar(id, l) { return tratar(await sb.from('mendoza_lancamentos').update(l).eq('id', id).select().single()); },
     async excluir(id) { return tratar(await sb.from('mendoza_lancamentos').delete().eq('id', id)); },
+    async meusBonus() { const d = tratar(await sb.rpc('mendoza_meus_bonus')); return Object.fromEntries((d || []).map(x => [x.lancamento_id, Number(x.bonus)])); },
   };
 }
 
@@ -270,8 +281,9 @@ function criarBancoDemo() {
     async usuarioAtual() { return atual; },
     async entrar(email) { const p = perfis.find(x => x.email === email); if (!p) throw new Error('Usuário de demonstração não encontrado.'); atual = { id: p.id, email }; return atual; },
     async sair() { atual = null; },
-    async perfis() { return perfis.map(p => ({ ...p })); },
-    async lancamentos() { return [...dados].sort((a,b) => b.data.localeCompare(a.data) || b.criado_em.localeCompare(a.criado_em)).map(x => ({ ...x })); },
+    async perfis() { const adm = perfis.find(p => p.id === atual.id).papel === 'admin'; return perfis.filter(p => adm || p.id === atual.id).map(p => ({ ...p })); },
+    async lancamentos() { const adm = perfis.find(p => p.id === atual.id).papel === 'admin'; return [...dados].filter(x => adm || x.vendedor_id === atual.id).sort((a,b) => b.data.localeCompare(a.data) || b.criado_em.localeCompare(a.criado_em)).map(x => ({ ...x })); },
+    async meusBonus() { const r = calcular(dados, perfis.filter(p => p.participa)); return Object.fromEntries(dados.filter(x => x.vendedor_id === atual.id).map(x => [x.id, r.detalhe[x.id] ? r.detalhe[x.id].bonus : 0])); },
     async inserir(l) { const n = { ...l, id: seq++, vendedor_id: atual.id, criado_em: new Date().toISOString() }; dados.push(n); return n; },
     async atualizar(id, l) { const i = dados.findIndex(x => x.id === id); dados[i] = { ...dados[i], ...l }; return dados[i]; },
     async excluir(id) { dados = dados.filter(x => x.id !== id); },
@@ -291,9 +303,9 @@ const fmtR$ = n => Number(n || 0).toLocaleString('pt-BR', { style:'currency', cu
 const fmtData = d => d ? d.split('-').reverse().join('/') : '';
 const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
 
-const estado = { usuario:null, perfil:null, perfis:[], lancamentos:[], aba:null, editando:null, filtroVend:'', filtroLinha:'' };
+const estado = { usuario:null, perfil:null, perfis:[], lancamentos:[], aba:null, editando:null, bonus:null, filtroVend:'', filtroLinha:'' };
 
-function participantes() { return estado.perfis.filter(p => p.participa); }
+function participantes() { return ehAdmin() ? estado.perfis.filter(p => p.participa) : (estado.perfil ? [estado.perfil] : []); }
 function ehAdmin() { return estado.perfil && estado.perfil.papel === 'admin'; }
 function nomeDe(id) { const p = estado.perfis.find(x => x.id === id); return p ? p.nome : '—'; }
 
@@ -315,21 +327,18 @@ function seloStatus(st) {
 }
 
 /* ---------- Abas ---------- */
+function calcularAtual() { return calcular(estado.lancamentos, participantes(), ehAdmin() ? null : estado.bonus); }
+
 function abasDisponiveis() {
-  const abas = [];
-  if (estado.perfil && estado.perfil.participa) abas.push(['lancar','Lançar venda'], ['meu','Meu painel']);
-  abas.push(['equipe','Equipe']);
-  if (ehAdmin()) abas.push(['vendedores','Por vendedor']);
-  abas.push(['lancamentos', ehAdmin() ? 'Todos os lançamentos' : 'Meus lançamentos']);
-  abas.push(['regras','Regras']);
-  return abas;
+  if (ehAdmin()) return [['equipe','Equipe'], ['vendedores','Por vendedor'], ['lancamentos','Todos os lançamentos'], ['regras','Regras']];
+  return [['meu','Minha meta'], ['lancar','Lançar venda'], ['lancamentos','Meus lançamentos'], ['regras','Regras']];
 }
 
 function render() {
   const abas = abasDisponiveis();
   if (!estado.aba || !abas.some(a => a[0] === estado.aba)) estado.aba = abas[0][0];
   $('#abas').innerHTML = abas.map(([id, nome]) => `<button data-aba="${id}" class="${id === estado.aba ? 'ativa' : ''}">${nome}</button>`).join('');
-  const r = calcular(estado.lancamentos, participantes());
+  const r = calcularAtual();
   const telas = { lancar: telaLancar, meu: telaMeu, equipe: telaEquipe, vendedores: telaVendedores, lancamentos: telaLancamentos, regras: telaRegras };
   $('#conteudo').innerHTML = telas[estado.aba](r);
   ligarEventos();
@@ -457,30 +466,31 @@ function telaMeu(r) {
   if (!v) return '<div class="card">Você não está participando desta campanha.</div>';
   const cards = CAMPANHA.linhas.map(cfg => {
     const x = v.linhas[cfg.id];
-    const e = r.equipe[cfg.id];
-    const sugeridoPct = e.sugerido / x.minimo;
+    const rs = cx => fmtR$(cx * CAMPANHA.garrafasPorCaixa * cfg.preco);
     return `<div class="linha-card">
-      <h3>${cfg.nome} ${x.minOk ? '<span class="selo ok">Mínimo ok</span>' : ''}</h3>
-      <div class="num">${fmtNum(x.pontos)} <span class="peq">/ ${fmtNum(x.minimo)} pts mínimos</span></div>
-      ${barra(Math.min(x.pctMinimo, 1), x.minOk)}
-      <div class="peq">${fmtCx(x.caixas)} cx · ${fmtR$(x.valor)}${x.bonus ? ` · ${fmtNum(x.bonus)} pts de bônus` : ''}</div>
-      <div class="peq">${x.minOk ? 'Mínimo individual cumprido' : `Faltam ${fmtNum(x.faltamPontos)} pts (≈ ${fmtCx(x.faltamCaixas)} cx) para o mínimo`}</div>
-      <div class="peq">Meta sugerida (sua parte da equipe): ${fmtNum(e.sugerido)} pts · ${fmtCx(e.sugerido / cfg.pontos)} cx</div>
+      <h3>${cfg.nome} ${x.metaOk ? '<span class="selo ok">Meta batida</span>' : x.minOk ? '<span class="selo pend">Mínimo ok</span>' : ''}</h3>
+      <div class="peq">Sua meta</div>
+      <div class="num">${fmtCx(x.metaCaixas)} caixas</div>
+      <div class="peq">${rs(x.metaCaixas)}</div>
+      ${barra(Math.min(x.pctMeta, 1), x.metaOk, x.minimo / x.meta)}
+      <div><b>Vendido: ${fmtCx(x.pontos / cfg.pontos)} cx</b> <span class="peq">(${fmtNum(Math.min(x.pctMeta, 9.99) * 100)}%)</span></div>
+      <div class="peq">${x.metaOk ? 'Meta da linha cumprida' : `Faltam <b>${fmtCx(x.faltamMetaCaixas)} caixas</b> (${rs(x.faltamMetaCaixas)})`}</div>
+      <div class="peq" style="margin-top:6px">Mínimo obrigatório: ${fmtCx(x.minimo / cfg.pontos)} cx ${x.minOk ? '✓' : `· faltam ${fmtCx(x.faltamCaixas)} cx`}</div>
+      ${x.bonus ? `<div class="peq">Inclui ${fmtCx(x.bonus / cfg.pontos)} cx extras de bônus por cliente novo</div>` : ''}
     </div>`;
   }).join('');
-  const nOk = v.linhasMinOk.length;
-  return `<div class="destaque ${v.status === 'garantido' ? 'ok' : ''}">
-      <div><div class="peq">Seu status</div><div style="margin-top:4px">${seloStatus(v.status)}</div></div>
-      <div><div class="peq">Linhas com mínimo cumprido</div><div class="grande">${nOk} de 4</div></div>
-      <div><div class="peq">Seu total na campanha</div><div class="grande">${fmtR$(v.valor)}</div></div>
-      <div><div class="peq">Seus pontos</div><div class="grande">${fmtNum(v.pontos)}</div></div>
+  const metaTotalR$ = CAMPANHA.linhas.reduce((s, c) => s + v.linhas[c.id].metaCaixas * CAMPANHA.garrafasPorCaixa * c.preco, 0);
+  return `<div class="destaque ${v.linhasMetaOk.length === 4 ? 'ok' : ''}">
+      <div><div class="peq">Linhas com meta batida</div><div class="grande">${v.linhasMetaOk.length} de 4</div></div>
+      <div><div class="peq">Linhas com mínimo obrigatório</div><div class="grande">${v.linhasMinOk.length} de 4</div></div>
+      <div><div class="peq">Você já vendeu</div><div class="grande">${fmtR$(v.valor)}</div><div class="peq">de ${fmtR$(metaTotalR$)} nas 4 linhas</div></div>
+      <div><div class="peq">Dias restantes</div><div class="grande">${diasRestantes()}</div></div>
     </div>
     <div class="card">
-      <h2>Seu mínimo individual por linha</h2>
-      <p class="nota">Para viajar, você precisa de pelo menos 15% da meta em cada uma das 3 linhas que a equipe bater. Garantir o mínimo em todas as 4 deixa você seguro em qualquer combinação.</p>
+      <h2>Sua meta por linha</h2>
+      <p class="nota">A marca preta na barra é o mínimo obrigatório para viajar. "Vendido" já considera devoluções e o bônus de cliente novo.</p>
       <div class="grade">${cards}</div>
-    </div>
-    ${blocoStatusEquipe(r)}`;
+    </div>`;
 }
 
 /* ---------- Tela: Equipe ---------- */
@@ -504,20 +514,20 @@ function telaEquipe(r) {
 /* ---------- Tela: Por vendedor (admin) ---------- */
 function telaVendedores(r) {
   const vs = Object.values(r.vendedores).sort((a, b) => a.nome.localeCompare(b.nome));
-  const cab = CAMPANHA.linhas.map(c => `<th class="n">${c.nome}<br><span class="peq">mín. ${fmtNum(r.equipe[c.id].minimo)} pts</span></th>`).join('');
+  const cab = CAMPANHA.linhas.map(c => `<th class="n">${c.nome}<br><span class="peq">meta ${fmtCx(r.equipe[c.id].sugerido / c.pontos)} cx · mín. ${fmtCx(r.equipe[c.id].minimo / c.pontos)} cx</span></th>`).join('');
   const corpo = vs.map(v => `<tr><td><b>${esc(v.nome)}</b><br>${seloStatus(v.status)}</td>
       ${CAMPANHA.linhas.map(c => {
         const x = v.linhas[c.id];
-        return `<td class="n">${fmtNum(x.pontos)} pts ${x.minOk ? '<span class="selo ok">ok</span>' : ''}<br>
-          <span class="peq">${fmtCx(x.caixas)} cx · ${fmtNum(Math.min(x.pctMinimo,9.99)*100)}% do mín.</span>
-          ${barra(Math.min(x.pctMinimo,1), x.minOk)}</td>`;
+        return `<td class="n"><b>${fmtCx(x.pontos / c.pontos)}</b> / ${fmtCx(x.metaCaixas)} cx ${x.metaOk ? '<span class="selo ok">meta</span>' : x.minOk ? '<span class="selo pend">mín.</span>' : ''}<br>
+          <span class="peq">${fmtNum(x.pontos)} pts · ${fmtNum(Math.min(x.pctMeta,9.99)*100)}% da meta</span>
+          ${barra(Math.min(x.pctMeta,1), x.metaOk, x.minimo / x.meta)}</td>`;
       }).join('')}
       <td class="n"><b>${fmtR$(v.valor)}</b><br><span class="peq">${fmtNum(v.pontos)} pts</span></td></tr>`).join('');
   const tot = CAMPANHA.linhas.map(c => { const e = r.equipe[c.id]; return `<td class="n"><b>${fmtNum(e.pontos)}</b> / ${fmtNum(c.meta)}<br><span class="peq">${fmtNum(e.pct*100)}% · ${fmtCx(e.caixas)} cx</span></td>`; }).join('');
   const totValor = Object.values(r.vendedores).reduce((s, v) => s + v.valor, 0);
   return `${blocoStatusEquipe(r)}
-    <div class="card"><h2>Pontos por vendedor e linha</h2>
-      <p class="nota">"% do mín." compara os pontos de cada um com o mínimo individual (15% da meta da linha).</p>
+    <div class="card"><h2>Cada vendedor por linha</h2>
+      <p class="nota">Caixas vendidas (já com devoluções e bônus de cliente novo) contra a meta individual de cada linha. A marca preta na barra é o mínimo obrigatório. O status segue a regra da vinícola: 3 linhas batidas pela equipe e o mínimo de cada vendedor nessas linhas.</p>
       <div class="tabela-rolagem"><table>
         <thead><tr><th>Vendedor</th>${cab}<th class="n">Total</th></tr></thead>
         <tbody>${corpo}</tbody>
@@ -563,28 +573,29 @@ function telaLancamentos(r) {
 
 /* ---------- Tela: Regras ---------- */
 function telaRegras(r) {
-  const n = participantes().length || 1;
+  const admin = ehAdmin();
   const linhas = CAMPANHA.linhas.map(c => {
-    const cxMeta = c.meta / c.pontos, cxMin = cxMeta * CAMPANHA.minimoIndividual, cxSug = cxMeta / n;
+    const cxMeta = c.meta / c.pontos, cxMin = cxMeta * CAMPANHA.minimoIndividual, cxSug = cxMeta / CAMPANHA.numVendedores;
     const rs = cx => fmtR$(cx * CAMPANHA.garrafasPorCaixa * c.preco);
     return `<tr><td>${c.nome}<br><span class="peq">${c.vinhos.join(', ')}</span></td>
-      <td class="n">${c.pontos}</td><td class="n">${fmtNum(c.meta)}<br><span class="peq">${fmtCx(cxMeta)} cx · ${rs(cxMeta)}</span></td>
+      ${admin ? `<td class="n">${fmtNum(c.meta)} pts<br><span class="peq">${fmtCx(cxMeta)} cx · ${rs(cxMeta)}</span></td>` : ''}
       <td class="n">${fmtCx(cxSug)} cx<br><span class="peq">${rs(cxSug)}</span></td>
       <td class="n">${fmtCx(cxMin)} cx<br><span class="peq">${rs(cxMin)}</span></td>
-      <td class="n">${c.pontos * 2} pts/cx<br><span class="peq">limite ${fmtNum(c.bonusMax)} pts</span></td></tr>`;
+      <td class="n">Vale em dobro<br><span class="peq">${c.pontos} pts/cx viram ${c.pontos * 2}</span></td></tr>`;
   }).join('');
   return `<div class="card"><h2>Como funciona</h2>
     <ul>
       <li>Período: 16/11/2026 a 28/02/2027. Viagem a Mendoza em março de 2027.</li>
-      <li>A <b>equipe</b> precisa bater a meta de <b>3 das 4 linhas</b>. Qualquer combinação serve.</li>
-      <li>Vai para Mendoza quem também tiver <b>pelo menos 15% da meta</b> em cada uma das 3 linhas que a equipe bater.</li>
-      <li>O <b>primeiro pedido de um cliente novo</b> vale pontos em dobro, até o limite da equipe em cada linha. Cliente novo é um CNPJ que nunca comprou da BMundi.</li>
-      <li>Devoluções descontam os pontos.</li>
+      <li>Cada vendedor tem uma <b>meta por linha</b>, em caixas de 6 garrafas.</li>
+      <li>O <b>mínimo obrigatório</b> em cada linha é a quantidade que não pode faltar para viajar.</li>
+      <li>O <b>primeiro pedido de um cliente novo</b> vale em dobro. Cliente novo é um CNPJ que nunca comprou da BMundi. O bônus tem um limite total na campanha, então vale a pena abrir clientes cedo.</li>
+      <li>Devoluções são descontadas.</li>
+      ${admin ? '<li><b>Regra da vinícola:</b> a equipe precisa bater 3 das 4 linhas, e viaja quem tiver o mínimo nas 3 linhas batidas.</li>' : ''}
     </ul></div>
-    <div class="card"><h2>Metas, mínimos e valores</h2>
-      <p class="nota">Valores pelo preço de venda por garrafa, em caixas de 6. Meta sugerida = meta da linha dividida por ${n} vendedores.</p>
+    <div class="card"><h2>${admin ? 'Metas e mínimos' : 'Suas metas'}</h2>
+      <p class="nota">Valores pelo preço de venda por garrafa.</p>
       <div class="tabela-rolagem"><table>
-        <thead><tr><th>Linha</th><th class="n">Pontos por caixa</th><th class="n">Meta da equipe</th><th class="n">Meta sugerida por vendedor</th><th class="n">Mínimo por vendedor</th><th class="n">Cliente novo</th></tr></thead>
+        <thead><tr><th>Linha</th>${admin ? '<th class="n">Meta da equipe</th>' : ''}<th class="n">${admin ? 'Meta por vendedor' : 'Sua meta'}</th><th class="n">Mínimo obrigatório</th><th class="n">Cliente novo</th></tr></thead>
         <tbody>${linhas}</tbody></table></div></div>`;
 }
 
@@ -647,8 +658,8 @@ function ligarEventos() {
   });
   if ($('#filtroVend')) $('#filtroVend').onchange = e => { estado.filtroVend = e.target.value; render(); };
   if ($('#filtroLinha')) $('#filtroLinha').onchange = e => { estado.filtroLinha = e.target.value; render(); };
-  if ($('#btnCsv')) $('#btnCsv').onclick = () => csvLancamentos(calcular(estado.lancamentos, participantes()));
-  if ($('#btnCsvResumo')) $('#btnCsvResumo').onclick = () => csvResumo(calcular(estado.lancamentos, participantes()));
+  if ($('#btnCsv')) $('#btnCsv').onclick = () => csvLancamentos(calcularAtual());
+  if ($('#btnCsvResumo')) $('#btnCsvResumo').onclick = () => csvResumo(calcularAtual());
 }
 
 /* ---------- Sessão ---------- */
@@ -656,6 +667,8 @@ async function recarregar() {
   const [perfis, lancs] = await Promise.all([banco.perfis(), banco.lancamentos()]);
   estado.perfis = perfis;
   estado.lancamentos = lancs;
+  estado.perfil = perfis.find(p => p.id === estado.usuario.id) || null;
+  estado.bonus = estado.perfil && estado.perfil.papel !== 'admin' ? await banco.meusBonus() : null;
   estado.perfil = perfis.find(p => p.id === estado.usuario.id) || null;
 }
 
