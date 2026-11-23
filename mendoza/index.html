@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rumo a Mendoza · Campanha BMundi</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --vinho:#6b1f3a; --vinho-claro:#f5e9ee; --verde:#1f7a4d; --verde-claro:#e5f4ec;
+    --amarelo:#b7791f; --amarelo-claro:#fdf3e1; --vermelho:#b42318; --vermelho-claro:#fdecea;
+    --texto:#1f2328; --suave:#667085; --borda:#e4e7ec; --fundo:#f7f7f8; --branco:#fff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--texto);background:var(--fundo);font-size:15px}
+  header{background:var(--vinho);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  header h1{margin:0;font-size:19px;letter-spacing:.3px}
+  header .sub{font-size:12.5px;opacity:.85}
+  header .usuario{font-size:13.5px;display:flex;align-items:center;gap:10px}
+  main{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
+  .abas{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+  .abas button{border:1px solid var(--borda);background:#fff;padding:9px 14px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--texto)}
+  .abas button.ativa{background:var(--vinho);color:#fff;border-color:var(--vinho)}
+  .card{background:#fff;border:1px solid var(--borda);border-radius:12px;padding:16px;margin-bottom:16px}
+  .card h2{margin:0 0 4px;font-size:16px}
+  .card .nota{color:var(--suave);font-size:13px;margin:0 0 12px}
+  .grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .linha-card{border:1px solid var(--borda);border-radius:10px;padding:12px}
+  .linha-card h3{margin:0 0 6px;font-size:14.5px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .num{font-size:22px;font-weight:700}
+  .peq{font-size:12.5px;color:var(--suave)}
+  .barra{height:9px;background:#eef0f3;border-radius:99px;overflow:hidden;margin:8px 0 6px;position:relative}
+  .barra > span{display:block;height:100%;background:var(--vinho);border-radius:99px}
+  .barra.ok > span{background:var(--verde)}
+  .barra .marca{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--texto);opacity:.55}
+  .selo{font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:99px;white-space:nowrap}
+  .selo.ok{background:var(--verde-claro);color:var(--verde)}
+  .selo.pend{background:var(--amarelo-claro);color:var(--amarelo)}
+  .selo.nao{background:var(--vermelho-claro);color:var(--vermelho)}
+  .destaque{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-radius:12px;margin-bottom:16px;border:1px solid var(--borda);background:#fff}
+  .destaque .grande{font-size:26px;font-weight:800}
+  .destaque.ok{background:var(--verde-claro);border-color:#b7e1c9}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:8px 8px;border-bottom:1px solid var(--borda);text-align:left;vertical-align:top}
+  th{background:#f3f3f3;font-weight:600;font-size:12.5px}
+  td.n,th.n{text-align:right;white-space:nowrap}
+  .tabela-rolagem{overflow-x:auto}
+  form .campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--suave)}
+  input,select{font:inherit;color:var(--texto);padding:9px 10px;border:1px solid #cfd4dc;border-radius:8px;background:#fff}
+  label.check{flex-direction:row;align-items:center;gap:8px;color:var(--texto);font-size:14px;padding-top:22px}
+  label.check input{width:18px;height:18px}
+  .botoes{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  button.prim{background:var(--vinho);color:#fff;border:0;padding:10px 18px;border-radius:8px;font-size:14.5px;cursor:pointer}
+  button.sec{background:#fff;color:var(--texto);border:1px solid #cfd4dc;padding:9px 14px;border-radius:8px;font-size:14px;cursor:pointer}
+  button.link{background:none;border:0;color:var(--vinho);cursor:pointer;padding:0 4px;font-size:13px;text-decoration:underline}
+  header button.sec{padding:6px 12px;font-size:13px}
+  .msg{padding:10px 12px;border-radius:8px;margin-top:12px;font-size:14px}
+  .msg.ok{background:var(--verde-claro);color:var(--verde)}
+  .msg.erro{background:var(--vermelho-claro);color:var(--vermelho)}
+  .login{max-width:380px;margin:60px auto}
+  .login .card{padding:24px}
+  .login input{width:100%}
+  .login label{margin-bottom:12px}
+  .preview{font-size:13.5px;background:var(--vinho-claro);border-radius:8px;padding:10px 12px;margin-top:12px}
+  .filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:12px}
+  .vazio{color:var(--suave);font-size:14px;padding:12px 0}
+  .devol{color:var(--vermelho)}
+  .demo{background:var(--amarelo-claro);color:var(--amarelo);text-align:center;font-size:13px;padding:6px}
+  .oculto{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="faixaDemo" class="demo oculto">Modo demonstração: os dados são fictícios e somem ao recarregar a página.</div>
+
+<header>
+  <div>
+    <h1>Rumo a Mendoza</h1>
+    <div class="sub">Campanha Reserva de los Andes · BMundi · 16/11/2026 a 28/02/2027</div>
+  </div>
+  <div class="usuario oculto" id="caixaUsuario">
+    <span id="nomeUsuario"></span>
+    <button class="sec" id="btnSair">Sair</button>
+  </div>
+</header>
+
+<main>
+  <!-- LOGIN -->
+  <section id="telaLogin" class="login oculto">
+    <div class="card">
+      <h2>Entrar</h2>
+      <p class="nota">Use o mesmo e-mail e senha da campanha mensal.</p>
+      <form id="formLogin">
+        <label>E-mail <input type="email" id="loginEmail" required autocomplete="username"></label>
+        <label>Senha <input type="password" id="loginSenha" required autocomplete="current-password"></label>
+        <button class="prim" type="submit" style="width:100%">Entrar</button>
+        <div id="msgLogin"></div>
+      </form>
+      <div id="demoUsuarios" class="oculto" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <section id="telaApp" class="oculto">
+    <nav class="abas" id="abas"></nav>
+    <div id="conteudo"></div>
+  </section>
+</main>
+
+<script>
+/* =====================================================================
+   1. CONFIGURAÇÃO
+   Preencha com os dados do projeto Supabase (os mesmos da campanha mensal).
+   Settings > API > Project URL e anon public key.
+   ===================================================================== */
+const SUPABASE_URL = 'https://zskarenekumtzdfcidsl.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Cjs7KNi3nM4cDc-cN-vomQ_ljHYvYHL';
+
+/* Regras da campanha, conforme a proposta da Reserva de los Andes.
+   Preço = preço de venda por garrafa. bonusMax = limite de pontos extras
+   da equipe por cliente novo, em cada linha. */
+const CAMPANHA = {
+  inicio: '2026-11-16',
+  fim: '2027-02-28',
+  garrafasPorCaixa: 6,
+  minimoIndividual: 0.15,
+  linhasNecessarias: 3,
+  linhas: [
+    { id:'reserva',    nome:'Reserva de los Andes', pontos:5,  meta:3500, preco:29.90, bonusMax:700,
+      vinhos:['Malbec','Cabernet Sauvignon','Chardonnay','Malbec Branco'] },
+    { id:'margaritas', nome:'Finca Las Margaritas', pontos:15, meta:1500, preco:39.90, bonusMax:300,
+      vinhos:['Malbec','Cabernet Sauvignon','Syrah','Chardonnay','Malbec Rosé'] },
+    { id:'sinfonazo',  nome:'Sinfonazo',            pontos:15, meta:1500, preco:49.90, bonusMax:300,
+      vinhos:['Sinfonazo'] },
+    { id:'celador',    nome:'Celador',              pontos:50, meta:3500, preco:130.00, bonusMax:700,
+      vinhos:['Malbec','Cabernet Franc'] },
+  ],
+};
+const LINHA = Object.fromEntries(CAMPANHA.linhas.map(l => [l.id, l]));
+
+/* =====================================================================
+   2. CÁLCULO DA CAMPANHA
+   ===================================================================== */
+// [CALC-INICIO]
+function calcular(lancamentos, participantes) {
+  const ids = new Set(participantes.map(p => p.id));
+  const validos = lancamentos.filter(l => ids.has(l.vendedor_id) && LINHA[l.linha]);
+  const nVend = Math.max(participantes.length, 1);
+
+  const vazioLinha = () => ({ pontos:0, base:0, bonus:0, caixas:0, valor:0 });
+  const equipe = {};
+  CAMPANHA.linhas.forEach(l => equipe[l.id] = vazioLinha());
+  const vend = {};
+  participantes.forEach(p => {
+    vend[p.id] = { id:p.id, nome:p.nome, linhas:{}, pontos:0, valor:0, caixas:0 };
+    CAMPANHA.linhas.forEach(l => vend[p.id].linhas[l.id] = vazioLinha());
+  });
+
+  // Bônus de cliente novo: limite por linha para a equipe toda,
+  // distribuído na ordem das vendas (data e depois hora do lançamento).
+  const restanteBonus = Object.fromEntries(CAMPANHA.linhas.map(l => [l.id, l.bonusMax]));
+  const ordenados = [...validos].sort((a, b) =>
+    (a.data || '').localeCompare(b.data || '') || String(a.criado_em || '').localeCompare(String(b.criado_em || '')) || (a.id > b.id ? 1 : -1));
+
+  const detalhe = {};
+  for (const l of ordenados) {
+    const cfg = LINHA[l.linha];
+    const sinal = l.tipo === 'devolucao' ? -1 : 1;
+    const cx = Number(l.caixas) || 0;
+    const base = sinal * cx * cfg.pontos;
+    let bonus = 0;
+    if (sinal === 1 && l.cliente_novo) {
+      bonus = Math.min(cx * cfg.pontos, restanteBonus[l.linha]);
+      restanteBonus[l.linha] -= bonus;
+    }
+    const valor = sinal * cx * CAMPANHA.garrafasPorCaixa * cfg.preco;
+    detalhe[l.id] = { base, bonus, pontos: base + bonus, valor };
+    for (const alvo of [equipe[l.linha], vend[l.vendedor_id].linhas[l.linha]]) {
+      alvo.base += base; alvo.bonus += bonus; alvo.pontos += base + bonus;
+      alvo.caixas += sinal * cx; alvo.valor += valor;
+    }
+    vend[l.vendedor_id].pontos += base + bonus;
+    vend[l.vendedor_id].valor += valor;
+    vend[l.vendedor_id].caixas += sinal * cx;
+  }
+
+  CAMPANHA.linhas.forEach(cfg => {
+    const e = equipe[cfg.id];
+    e.meta = cfg.meta;
+    e.atingida = e.pontos >= cfg.meta;
+    e.pct = e.pontos / cfg.meta;
+    e.faltamPontos = Math.max(0, cfg.meta - e.pontos);
+    e.faltamCaixas = e.faltamPontos / cfg.pontos;
+    e.bonusRestante = restanteBonus[cfg.id];
+    e.minimo = cfg.meta * CAMPANHA.minimoIndividual;
+    e.sugerido = cfg.meta / nVend;
+  });
+
+  const linhasAtingidas = CAMPANHA.linhas.filter(l => equipe[l.id].atingida).map(l => l.id);
+  const equipeClassificada = linhasAtingidas.length >= CAMPANHA.linhasNecessarias;
+
+  Object.values(vend).forEach(v => {
+    CAMPANHA.linhas.forEach(cfg => {
+      const x = v.linhas[cfg.id];
+      x.minimo = equipe[cfg.id].minimo;
+      x.minOk = x.pontos >= x.minimo;
+      x.pctMinimo = x.pontos / x.minimo;
+      x.faltamPontos = Math.max(0, x.minimo - x.pontos);
+      x.faltamCaixas = x.faltamPontos / cfg.pontos;
+    });
+    v.linhasMinOk = CAMPANHA.linhas.filter(l => v.linhas[l.id].minOk).map(l => l.id);
+    const okNasAtingidas = linhasAtingidas.filter(id => v.linhas[id].minOk).length;
+    if (equipeClassificada) {
+      v.status = okNasAtingidas >= CAMPANHA.linhasNecessarias ? 'garantido' : 'abaixo';
+    } else {
+      v.status = 'andamento';
+    }
+  });
+
+  return { equipe, vendedores: vend, linhasAtingidas, equipeClassificada, detalhe };
+}
+// [CALC-FIM]
+
+/* =====================================================================
+   3. ACESSO AOS DADOS (Supabase ou demonstração)
+   ===================================================================== */
+const MODO_DEMO = !SUPABASE_URL || new URLSearchParams(location.search).has('demo');
+
+function criarBancoSupabase() {
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const tratar = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
+  return {
+    async usuarioAtual() { const { data } = await sb.auth.getSession(); return data.session ? data.session.user : null; },
+    async entrar(email, senha) { const { data, error } = await sb.auth.signInWithPassword({ email, password: senha }); if (error) throw new Error('E-mail ou senha incorretos.'); return data.user; },
+    async sair() { await sb.auth.signOut(); },
+    async perfis() { return tratar(await sb.from('mendoza_perfis').select('*').order('nome')); },
+    async lancamentos() { return tratar(await sb.from('mendoza_lancamentos').select('*').order('data', { ascending:false }).order('criado_em', { ascending:false })); },
+    async inserir(l) { return tratar(await sb.from('mendoza_lancamentos').insert(l).select().single()); },
+    async atualizar(id, l) { return tratar(await sb.from('mendoza_lancamentos').update(l).eq('id', id).select().single()); },
+    async excluir(id) { return tratar(await sb.from('mendoza_lancamentos').delete().eq('id', id)); },
+  };
+}
+
+function criarBancoDemo() {
+  const perfis = [
+    { id:'u-sidney',   nome:'Sidney',   email:'sidney@demo',   papel:'admin',    participa:false },
+    { id:'u-mozart',   nome:'Mozart',   email:'mozart@demo',   papel:'vendedor', participa:true },
+    { id:'u-fernanda', nome:'Fernanda', email:'fernanda@demo', papel:'vendedor', participa:true },
+    { id:'u-josias',   nome:'Josias',   email:'josias@demo',   papel:'vendedor', participa:true },
+    { id:'u-natalia',  nome:'Natália',  email:'natalia@demo',  papel:'vendedor', participa:true },
+  ];
+  let seq = 1;
+  const L = (vend, data, cliente, linha, vinho, caixas, novo=false, tipo='venda') =>
+    ({ id: seq++, vendedor_id: vend, data, cliente, cnpj:'', linha, vinho, caixas, cliente_novo: novo, tipo, nota_fiscal:'', criado_em: new Date(2026,10,16, 8, seq).toISOString() });
+  let dados = [
+    L('u-mozart','2026-11-17','Empório Lagoa','reserva','Malbec',60),
+    L('u-mozart','2026-11-18','Adega Centro','margaritas','Malbec',12, true),
+    L('u-mozart','2026-11-19','Super Ilha','sinfonazo','Sinfonazo',10),
+    L('u-fernanda','2026-11-17','Restaurante Mar','reserva','Cabernet Sauvignon',90),
+    L('u-fernanda','2026-11-18','Adega Sul','celador','Malbec',8, true),
+    L('u-fernanda','2026-11-20','Empório Norte','margaritas','Syrah',16),
+    L('u-josias','2026-11-18','Mercado Bom Preço','reserva','Chardonnay',40),
+    L('u-josias','2026-11-21','Mercado Bom Preço','reserva','Chardonnay',4, false, 'devolucao'),
+    L('u-natalia','2026-11-20','Cantina Trento','sinfonazo','Sinfonazo',6, true),
+  ];
+  let atual = null;
+  return {
+    demoPerfis: perfis,
+    async usuarioAtual() { return atual; },
+    async entrar(email) { const p = perfis.find(x => x.email === email); if (!p) throw new Error('Usuário de demonstração não encontrado.'); atual = { id: p.id, email }; return atual; },
+    async sair() { atual = null; },
+    async perfis() { return perfis.map(p => ({ ...p })); },
+    async lancamentos() { return [...dados].sort((a,b) => b.data.localeCompare(a.data) || b.criado_em.localeCompare(a.criado_em)).map(x => ({ ...x })); },
+    async inserir(l) { const n = { ...l, id: seq++, vendedor_id: atual.id, criado_em: new Date().toISOString() }; dados.push(n); return n; },
+    async atualizar(id, l) { const i = dados.findIndex(x => x.id === id); dados[i] = { ...dados[i], ...l }; return dados[i]; },
+    async excluir(id) { dados = dados.filter(x => x.id !== id); },
+  };
+}
+
+const banco = MODO_DEMO ? criarBancoDemo() : criarBancoSupabase();
+
+/* =====================================================================
+   4. INTERFACE
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const fmtNum = (n, d=0) => Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits:d, maximumFractionDigits:d });
+const fmtCx = n => fmtNum(n, Math.abs(n - Math.round(n)) < 0.05 ? 0 : 1);
+const fmtR$ = n => Number(n || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+const fmtData = d => d ? d.split('-').reverse().join('/') : '';
+const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
+
+const estado = { usuario:null, perfil:null, perfis:[], lancamentos:[], aba:null, editando:null, filtroVend:'', filtroLinha:'' };
+
+function participantes() { return estado.perfis.filter(p => p.participa); }
+function ehAdmin() { return estado.perfil && estado.perfil.papel === 'admin'; }
+function nomeDe(id) { const p = estado.perfis.find(x => x.id === id); return p ? p.nome : '—'; }
+
+function diasRestantes() {
+  const fim = new Date(CAMPANHA.fim + 'T23:59:59');
+  return Math.max(0, Math.ceil((fim - new Date()) / 86400000));
+}
+
+function barra(pct, ok, marcaPct) {
+  const w = Math.max(0, Math.min(100, pct * 100));
+  const marca = marcaPct != null ? `<i class="marca" style="left:${Math.min(100, marcaPct*100)}%"></i>` : '';
+  return `<div class="barra ${ok ? 'ok' : ''}"><span style="width:${w}%"></span>${marca}</div>`;
+}
+
+function seloStatus(st) {
+  if (st === 'garantido') return '<span class="selo ok">Viagem garantida</span>';
+  if (st === 'abaixo') return '<span class="selo nao">Abaixo do mínimo</span>';
+  return '<span class="selo pend">Em andamento</span>';
+}
+
+/* ---------- Abas ---------- */
+function abasDisponiveis() {
+  const abas = [];
+  if (estado.perfil && estado.perfil.participa) abas.push(['lancar','Lançar venda'], ['meu','Meu painel']);
+  abas.push(['equipe','Equipe']);
+  if (ehAdmin()) abas.push(['vendedores','Por vendedor']);
+  abas.push(['lancamentos', ehAdmin() ? 'Todos os lançamentos' : 'Meus lançamentos']);
+  abas.push(['regras','Regras']);
+  return abas;
+}
+
+function render() {
+  const abas = abasDisponiveis();
+  if (!estado.aba || !abas.some(a => a[0] === estado.aba)) estado.aba = abas[0][0];
+  $('#abas').innerHTML = abas.map(([id, nome]) => `<button data-aba="${id}" class="${id === estado.aba ? 'ativa' : ''}">${nome}</button>`).join('');
+  const r = calcular(estado.lancamentos, participantes());
+  const telas = { lancar: telaLancar, meu: telaMeu, equipe: telaEquipe, vendedores: telaVendedores, lancamentos: telaLancamentos, regras: telaRegras };
+  $('#conteudo').innerHTML = telas[estado.aba](r);
+  ligarEventos();
+}
+
+/* ---------- Resumo da equipe (usado em várias telas) ---------- */
+function blocoStatusEquipe(r) {
+  const n = r.linhasAtingidas.length;
+  return `<div class="destaque ${r.equipeClassificada ? 'ok' : ''}">
+    <div><div class="peq">Linhas atingidas pela equipe</div><div class="grande">${n} de 4</div></div>
+    <div style="flex:1;min-width:220px">${r.equipeClassificada
+      ? 'A equipe já bateu 3 linhas. Agora cada vendedor precisa ter o mínimo individual nessas linhas para garantir a viagem.'
+      : `Faltam ${CAMPANHA.linhasNecessarias - n} linha(s) para a equipe garantir a viagem. Qualquer combinação de 3 linhas serve.`}</div>
+    <div><div class="peq">Dias restantes</div><div class="grande">${diasRestantes()}</div></div>
+  </div>`;
+}
+
+function cardsEquipe(r) {
+  return `<div class="grade">${CAMPANHA.linhas.map(cfg => {
+    const e = r.equipe[cfg.id];
+    return `<div class="linha-card">
+      <h3>${cfg.nome} ${e.atingida ? '<span class="selo ok">Atingida</span>' : ''}</h3>
+      <div class="num">${fmtNum(e.pontos)} <span class="peq">/ ${fmtNum(cfg.meta)} pts</span></div>
+      ${barra(e.pct, e.atingida)}
+      <div class="peq">${fmtNum(e.pct*100)}% · ${fmtCx(e.caixas)} cx · ${fmtR$(e.valor)}</div>
+      <div class="peq">${e.atingida ? 'Meta da linha batida' : `Faltam ${fmtNum(e.faltamPontos)} pts (≈ ${fmtCx(e.faltamCaixas)} cx)`}</div>
+      <div class="peq">Bônus de cliente novo disponível: ${fmtNum(e.bonusRestante)} pts</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ---------- Tela: Lançar venda ---------- */
+function telaLancar() {
+  const l = estado.editando ? estado.lancamentos.find(x => x.id === estado.editando) : null;
+  const v = l || { data: hojeISO(), cliente:'', cnpj:'', linha:'reserva', vinho:'', caixas:'', cliente_novo:false, tipo:'venda', nota_fiscal:'' };
+  const opcoesLinha = CAMPANHA.linhas.map(c => `<option value="${c.id}" ${c.id === v.linha ? 'selected' : ''}>${c.nome}</option>`).join('');
+  return `<div class="card">
+    <h2>${l ? 'Editar lançamento' : 'Lançar venda'}</h2>
+    <p class="nota">Lance cada pedido faturado. Devoluções entram como lançamento próprio e descontam os pontos.</p>
+    <form id="formVenda">
+      <div class="campos">
+        <label>Tipo
+          <select id="fTipo">
+            <option value="venda" ${v.tipo === 'venda' ? 'selected' : ''}>Venda</option>
+            <option value="devolucao" ${v.tipo === 'devolucao' ? 'selected' : ''}>Devolução</option>
+          </select></label>
+        <label>Data do faturamento <input type="date" id="fData" required min="${CAMPANHA.inicio}" max="${CAMPANHA.fim}" value="${esc(v.data)}"></label>
+        <label>Cliente <input id="fCliente" required maxlength="120" value="${esc(v.cliente)}" placeholder="Nome do cliente"></label>
+        <label>CNPJ <input id="fCnpj" maxlength="18" value="${esc(v.cnpj)}" placeholder="00.000.000/0000-00"></label>
+        <label>Linha <select id="fLinha">${opcoesLinha}</select></label>
+        <label>Vinho <select id="fVinho"></select></label>
+        <label>Caixas (6 garrafas) <input type="number" id="fCaixas" required min="0.5" step="0.5" value="${esc(v.caixas)}"></label>
+        <label>Nota fiscal <input id="fNota" maxlength="30" value="${esc(v.nota_fiscal)}" placeholder="Opcional"></label>
+        <label class="check" id="boxNovo"><input type="checkbox" id="fNovo" ${v.cliente_novo ? 'checked' : ''}> Primeiro pedido de cliente novo</label>
+      </div>
+      <div class="preview" id="previa"></div>
+      <div class="botoes">
+        <button class="prim" type="submit">${l ? 'Salvar alterações' : 'Lançar'}</button>
+        ${l ? '<button class="sec" type="button" id="btnCancelarEdicao">Cancelar</button>' : ''}
+      </div>
+      <div id="msgVenda"></div>
+    </form>
+  </div>
+  <p class="peq">Cliente novo é um CNPJ que nunca comprou da BMundi. O bônus vale só no primeiro pedido faturado e entregue, e tem um limite por linha para a equipe toda.</p>`;
+}
+
+function atualizarVinhos(selecionado) {
+  const cfg = LINHA[$('#fLinha').value];
+  $('#fVinho').innerHTML = cfg.vinhos.map(w => `<option ${w === selecionado ? 'selected' : ''}>${esc(w)}</option>`).join('');
+}
+
+function atualizarPrevia() {
+  const cfg = LINHA[$('#fLinha').value];
+  const cx = Number($('#fCaixas').value) || 0;
+  const devol = $('#fTipo').value === 'devolucao';
+  $('#boxNovo').classList.toggle('oculto', devol);
+  const pts = cx * cfg.pontos;
+  const valor = cx * CAMPANHA.garrafasPorCaixa * cfg.preco;
+  let txt = devol
+    ? `Esta devolução desconta <b>${fmtNum(pts)} pontos</b> e ${fmtR$(valor)}.`
+    : `Esta venda vale <b>${fmtNum(pts)} pontos</b> (${fmtR$(valor)}).`;
+  if (!devol && $('#fNovo').checked) txt += ` Como é cliente novo, pode somar até <b>${fmtNum(pts)} pontos extras</b>, se ainda houver bônus disponível na linha.`;
+  $('#previa').innerHTML = txt;
+}
+
+async function salvarVenda(ev) {
+  ev.preventDefault();
+  const msg = $('#msgVenda');
+  const reg = {
+    tipo: $('#fTipo').value,
+    data: $('#fData').value,
+    cliente: $('#fCliente').value.trim(),
+    cnpj: $('#fCnpj').value.trim(),
+    linha: $('#fLinha').value,
+    vinho: $('#fVinho').value,
+    caixas: Number($('#fCaixas').value),
+    nota_fiscal: $('#fNota').value.trim(),
+  };
+  reg.cliente_novo = reg.tipo === 'venda' && $('#fNovo').checked;
+  if (reg.data < CAMPANHA.inicio || reg.data > CAMPANHA.fim) { msg.innerHTML = '<div class="msg erro">A data precisa estar dentro do período da campanha (16/11/2026 a 28/02/2027).</div>'; return; }
+  if (!(reg.caixas > 0)) { msg.innerHTML = '<div class="msg erro">Informe a quantidade de caixas.</div>'; return; }
+  if (reg.cliente_novo && !reg.cnpj) { msg.innerHTML = '<div class="msg erro">Para cliente novo, informe o CNPJ.</div>'; return; }
+  if (reg.cliente_novo) {
+    const cnpjLimpo = reg.cnpj.replace(/\D/g, '');
+    const repetido = estado.lancamentos.some(x => x.cliente_novo && x.id !== estado.editando && x.linha === reg.linha && (x.cnpj || '').replace(/\D/g, '') === cnpjLimpo);
+    if (repetido) { msg.innerHTML = '<div class="msg erro">Este CNPJ já foi lançado como cliente novo nesta linha. O bônus vale só no primeiro pedido.</div>'; return; }
+  }
+  try {
+    if (estado.editando) await banco.atualizar(estado.editando, reg);
+    else await banco.inserir(reg);
+    const editou = !!estado.editando;
+    estado.editando = null;
+    await recarregar();
+    estado.aba = 'lancar';
+    render();
+    $('#msgVenda').innerHTML = `<div class="msg ok">${editou ? 'Lançamento atualizado.' : 'Venda lançada.'}</div>`;
+  } catch (e) {
+    msg.innerHTML = `<div class="msg erro">Não foi possível salvar: ${esc(e.message)}</div>`;
+  }
+}
+
+/* ---------- Tela: Meu painel ---------- */
+function telaMeu(r) {
+  const v = r.vendedores[estado.perfil.id];
+  if (!v) return '<div class="card">Você não está participando desta campanha.</div>';
+  const cards = CAMPANHA.linhas.map(cfg => {
+    const x = v.linhas[cfg.id];
+    const e = r.equipe[cfg.id];
+    const sugeridoPct = e.sugerido / x.minimo;
+    return `<div class="linha-card">
+      <h3>${cfg.nome} ${x.minOk ? '<span class="selo ok">Mínimo ok</span>' : ''}</h3>
+      <div class="num">${fmtNum(x.pontos)} <span class="peq">/ ${fmtNum(x.minimo)} pts mínimos</span></div>
+      ${barra(Math.min(x.pctMinimo, 1), x.minOk)}
+      <div class="peq">${fmtCx(x.caixas)} cx · ${fmtR$(x.valor)}${x.bonus ? ` · ${fmtNum(x.bonus)} pts de bônus` : ''}</div>
+      <div class="peq">${x.minOk ? 'Mínimo individual cumprido' : `Faltam ${fmtNum(x.faltamPontos)} pts (≈ ${fmtCx(x.faltamCaixas)} cx) para o mínimo`}</div>
+      <div class="peq">Meta sugerida (sua parte da equipe): ${fmtNum(e.sugerido)} pts · ${fmtCx(e.sugerido / cfg.pontos)} cx</div>
+    </div>`;
+  }).join('');
+  const nOk = v.linhasMinOk.length;
+  return `<div class="destaque ${v.status === 'garantido' ? 'ok' : ''}">
+      <div><div class="peq">Seu status</div><div style="margin-top:4px">${seloStatus(v.status)}</div></div>
+      <div><div class="peq">Linhas com mínimo cumprido</div><div class="grande">${nOk} de 4</div></div>
+      <div><div class="peq">Seu total na campanha</div><div class="grande">${fmtR$(v.valor)}</div></div>
+      <div><div class="peq">Seus pontos</div><div class="grande">${fmtNum(v.pontos)}</div></div>
+    </div>
+    <div class="card">
+      <h2>Seu mínimo individual por linha</h2>
+      <p class="nota">Para viajar, você precisa de pelo menos 15% da meta em cada uma das 3 linhas que a equipe bater. Garantir o mínimo em todas as 4 deixa você seguro em qualquer combinação.</p>
+      <div class="grade">${cards}</div>
+    </div>
+    ${blocoStatusEquipe(r)}`;
+}
+
+/* ---------- Tela: Equipe ---------- */
+function telaEquipe(r) {
+  const ranking = Object.values(r.vendedores).sort((a, b) => b.pontos - a.pontos);
+  const linhas = ranking.map((v, i) => `<tr>
+      <td>${i + 1}º</td><td>${esc(v.nome)}</td>
+      <td class="n">${fmtNum(v.pontos)}</td><td class="n">${fmtR$(v.valor)}</td>
+      <td class="n">${v.linhasMinOk.length} de 4</td><td>${seloStatus(v.status)}</td></tr>`).join('');
+  return `${blocoStatusEquipe(r)}
+    <div class="card"><h2>Metas da equipe por linha</h2>
+      <p class="nota">A equipe precisa bater 3 das 4 linhas. Os pontos de todos os vendedores somam aqui.</p>
+      ${cardsEquipe(r)}</div>
+    <div class="card"><h2>Vendedores</h2>
+      <div class="tabela-rolagem"><table>
+        <thead><tr><th></th><th>Vendedor</th><th class="n">Pontos</th><th class="n">Vendas</th><th class="n">Mínimos ok</th><th>Status</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="6" class="vazio">Sem vendedores cadastrados.</td></tr>'}</tbody>
+      </table></div></div>`;
+}
+
+/* ---------- Tela: Por vendedor (admin) ---------- */
+function telaVendedores(r) {
+  const vs = Object.values(r.vendedores).sort((a, b) => a.nome.localeCompare(b.nome));
+  const cab = CAMPANHA.linhas.map(c => `<th class="n">${c.nome}<br><span class="peq">mín. ${fmtNum(r.equipe[c.id].minimo)} pts</span></th>`).join('');
+  const corpo = vs.map(v => `<tr><td><b>${esc(v.nome)}</b><br>${seloStatus(v.status)}</td>
+      ${CAMPANHA.linhas.map(c => {
+        const x = v.linhas[c.id];
+        return `<td class="n">${fmtNum(x.pontos)} pts ${x.minOk ? '<span class="selo ok">ok</span>' : ''}<br>
+          <span class="peq">${fmtCx(x.caixas)} cx · ${fmtNum(Math.min(x.pctMinimo,9.99)*100)}% do mín.</span>
+          ${barra(Math.min(x.pctMinimo,1), x.minOk)}</td>`;
+      }).join('')}
+      <td class="n"><b>${fmtR$(v.valor)}</b><br><span class="peq">${fmtNum(v.pontos)} pts</span></td></tr>`).join('');
+  const tot = CAMPANHA.linhas.map(c => { const e = r.equipe[c.id]; return `<td class="n"><b>${fmtNum(e.pontos)}</b> / ${fmtNum(c.meta)}<br><span class="peq">${fmtNum(e.pct*100)}% · ${fmtCx(e.caixas)} cx</span></td>`; }).join('');
+  const totValor = Object.values(r.vendedores).reduce((s, v) => s + v.valor, 0);
+  return `${blocoStatusEquipe(r)}
+    <div class="card"><h2>Pontos por vendedor e linha</h2>
+      <p class="nota">"% do mín." compara os pontos de cada um com o mínimo individual (15% da meta da linha).</p>
+      <div class="tabela-rolagem"><table>
+        <thead><tr><th>Vendedor</th>${cab}<th class="n">Total</th></tr></thead>
+        <tbody>${corpo}</tbody>
+        <tfoot><tr><td><b>Equipe</b></td>${tot}<td class="n"><b>${fmtR$(totValor)}</b></td></tr></tfoot>
+      </table></div>
+      <div class="botoes"><button class="sec" id="btnCsvResumo">Baixar resumo (CSV)</button></div>
+    </div>`;
+}
+
+/* ---------- Tela: Lançamentos ---------- */
+function telaLancamentos(r) {
+  let lista = estado.lancamentos;
+  if (!ehAdmin()) lista = lista.filter(l => l.vendedor_id === estado.perfil.id);
+  if (ehAdmin() && estado.filtroVend) lista = lista.filter(l => l.vendedor_id === estado.filtroVend);
+  if (estado.filtroLinha) lista = lista.filter(l => l.linha === estado.filtroLinha);
+  const filtros = `<div class="filtros">
+      ${ehAdmin() ? `<label>Vendedor <select id="filtroVend"><option value="">Todos</option>${participantes().map(p => `<option value="${p.id}" ${p.id === estado.filtroVend ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>` : ''}
+      <label>Linha <select id="filtroLinha"><option value="">Todas</option>${CAMPANHA.linhas.map(c => `<option value="${c.id}" ${c.id === estado.filtroLinha ? 'selected' : ''}>${c.nome}</option>`).join('')}</select></label>
+      <button class="sec" id="btnCsv">Baixar lançamentos (CSV)</button>
+    </div>`;
+  const podeEditar = l => ehAdmin() || l.vendedor_id === estado.perfil.id;
+  const linhas = lista.map(l => {
+    const d = r.detalhe[l.id] || { pontos:0, bonus:0, valor:0 };
+    const dev = l.tipo === 'devolucao';
+    return `<tr class="${dev ? 'devol' : ''}">
+      <td>${fmtData(l.data)}</td>
+      ${ehAdmin() ? `<td>${esc(nomeDe(l.vendedor_id))}</td>` : ''}
+      <td>${esc(l.cliente)}${l.cliente_novo ? ' <span class="selo ok">novo</span>' : ''}${dev ? ' <span class="selo nao">devolução</span>' : ''}<br><span class="peq">${esc(l.cnpj)}${l.nota_fiscal ? ' · NF ' + esc(l.nota_fiscal) : ''}</span></td>
+      <td>${esc(LINHA[l.linha] ? LINHA[l.linha].nome : l.linha)}<br><span class="peq">${esc(l.vinho)}</span></td>
+      <td class="n">${dev ? '-' : ''}${fmtCx(l.caixas)}</td>
+      <td class="n">${fmtNum(d.pontos)}${d.bonus ? `<br><span class="peq">+${fmtNum(d.bonus)} bônus</span>` : ''}</td>
+      <td class="n">${fmtR$(d.valor)}</td>
+      <td class="n">${podeEditar(l) ? `<button class="link" data-editar="${l.id}">editar</button><button class="link" data-excluir="${l.id}">excluir</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="card"><h2>${ehAdmin() ? 'Todos os lançamentos' : 'Meus lançamentos'}</h2>
+    ${filtros}
+    <div class="tabela-rolagem"><table>
+      <thead><tr><th>Data</th>${ehAdmin() ? '<th>Vendedor</th>' : ''}<th>Cliente</th><th>Linha / vinho</th><th class="n">Caixas</th><th class="n">Pontos</th><th class="n">Valor</th><th></th></tr></thead>
+      <tbody>${linhas || `<tr><td colspan="8" class="vazio">Nenhum lançamento ainda.</td></tr>`}</tbody>
+    </table></div></div>`;
+}
+
+/* ---------- Tela: Regras ---------- */
+function telaRegras(r) {
+  const n = participantes().length || 1;
+  const linhas = CAMPANHA.linhas.map(c => {
+    const cxMeta = c.meta / c.pontos, cxMin = cxMeta * CAMPANHA.minimoIndividual, cxSug = cxMeta / n;
+    const rs = cx => fmtR$(cx * CAMPANHA.garrafasPorCaixa * c.preco);
+    return `<tr><td>${c.nome}<br><span class="peq">${c.vinhos.join(', ')}</span></td>
+      <td class="n">${c.pontos}</td><td class="n">${fmtNum(c.meta)}<br><span class="peq">${fmtCx(cxMeta)} cx · ${rs(cxMeta)}</span></td>
+      <td class="n">${fmtCx(cxSug)} cx<br><span class="peq">${rs(cxSug)}</span></td>
+      <td class="n">${fmtCx(cxMin)} cx<br><span class="peq">${rs(cxMin)}</span></td>
+      <td class="n">${c.pontos * 2} pts/cx<br><span class="peq">limite ${fmtNum(c.bonusMax)} pts</span></td></tr>`;
+  }).join('');
+  return `<div class="card"><h2>Como funciona</h2>
+    <ul>
+      <li>Período: 16/11/2026 a 28/02/2027. Viagem a Mendoza em março de 2027.</li>
+      <li>A <b>equipe</b> precisa bater a meta de <b>3 das 4 linhas</b>. Qualquer combinação serve.</li>
+      <li>Vai para Mendoza quem também tiver <b>pelo menos 15% da meta</b> em cada uma das 3 linhas que a equipe bater.</li>
+      <li>O <b>primeiro pedido de um cliente novo</b> vale pontos em dobro, até o limite da equipe em cada linha. Cliente novo é um CNPJ que nunca comprou da BMundi.</li>
+      <li>Devoluções descontam os pontos.</li>
+    </ul></div>
+    <div class="card"><h2>Metas, mínimos e valores</h2>
+      <p class="nota">Valores pelo preço de venda por garrafa, em caixas de 6. Meta sugerida = meta da linha dividida por ${n} vendedores.</p>
+      <div class="tabela-rolagem"><table>
+        <thead><tr><th>Linha</th><th class="n">Pontos por caixa</th><th class="n">Meta da equipe</th><th class="n">Meta sugerida por vendedor</th><th class="n">Mínimo por vendedor</th><th class="n">Cliente novo</th></tr></thead>
+        <tbody>${linhas}</tbody></table></div></div>`;
+}
+
+/* ---------- CSV ---------- */
+function baixarCsv(nome, linhas) {
+  const txt = linhas.map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const blob = new Blob(['﻿' + txt], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nome; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const numCsv = n => String(Math.round(n * 100) / 100).replace('.', ',');
+
+function csvLancamentos(r) {
+  const cab = ['Data','Vendedor','Tipo','Cliente','CNPJ','Cliente novo','Linha','Vinho','Caixas','Pontos','Bônus','Valor (R$)','Nota fiscal'];
+  const rows = estado.lancamentos
+    .filter(l => ehAdmin() || l.vendedor_id === estado.perfil.id)
+    .map(l => { const d = r.detalhe[l.id] || { pontos:0, bonus:0, valor:0 };
+      return [fmtData(l.data), nomeDe(l.vendedor_id), l.tipo === 'devolucao' ? 'Devolução' : 'Venda', l.cliente, l.cnpj, l.cliente_novo ? 'Sim' : 'Não',
+        LINHA[l.linha] ? LINHA[l.linha].nome : l.linha, l.vinho, numCsv(l.caixas), numCsv(d.pontos), numCsv(d.bonus), numCsv(d.valor), l.nota_fiscal]; });
+  baixarCsv('mendoza-lancamentos.csv', [cab, ...rows]);
+}
+
+function csvResumo(r) {
+  const cab = ['Vendedor','Status'];
+  CAMPANHA.linhas.forEach(c => cab.push(`${c.nome} (pts)`, `${c.nome} (cx)`, `${c.nome} mínimo ok`));
+  cab.push('Total (R$)', 'Total (pts)');
+  const st = { garantido:'Viagem garantida', abaixo:'Abaixo do mínimo', andamento:'Em andamento' };
+  const rows = Object.values(r.vendedores).map(v => {
+    const l = [v.nome, st[v.status]];
+    CAMPANHA.linhas.forEach(c => { const x = v.linhas[c.id]; l.push(numCsv(x.pontos), numCsv(x.caixas), x.minOk ? 'Sim' : 'Não'); });
+    l.push(numCsv(v.valor), numCsv(v.pontos));
+    return l;
+  });
+  baixarCsv('mendoza-resumo.csv', [cab, ...rows]);
+}
+
+/* ---------- Eventos ---------- */
+function ligarEventos() {
+  document.querySelectorAll('[data-aba]').forEach(b => b.onclick = () => { estado.aba = b.dataset.aba; if (estado.aba !== 'lancar') estado.editando = null; render(); });
+  if ($('#formVenda')) {
+    const l = estado.editando ? estado.lancamentos.find(x => x.id === estado.editando) : null;
+    atualizarVinhos(l ? l.vinho : null);
+    $('#fLinha').onchange = () => { atualizarVinhos(); atualizarPrevia(); };
+    ['#fCaixas','#fTipo','#fNovo'].forEach(s => $(s).addEventListener('input', atualizarPrevia));
+    $('#fTipo').addEventListener('change', atualizarPrevia);
+    $('#fNovo').addEventListener('change', atualizarPrevia);
+    atualizarPrevia();
+    $('#formVenda').onsubmit = salvarVenda;
+    if ($('#btnCancelarEdicao')) $('#btnCancelarEdicao').onclick = () => { estado.editando = null; estado.aba = 'lancamentos'; render(); };
+  }
+  document.querySelectorAll('[data-editar]').forEach(b => b.onclick = () => {
+    const id = isNaN(b.dataset.editar) ? b.dataset.editar : Number(b.dataset.editar);
+    estado.editando = id; estado.aba = 'lancar'; render();
+  });
+  document.querySelectorAll('[data-excluir]').forEach(b => b.onclick = async () => {
+    const id = isNaN(b.dataset.excluir) ? b.dataset.excluir : Number(b.dataset.excluir);
+    if (!confirm('Excluir este lançamento?')) return;
+    try { await banco.excluir(id); await recarregar(); render(); } catch (e) { alert('Não foi possível excluir: ' + e.message); }
+  });
+  if ($('#filtroVend')) $('#filtroVend').onchange = e => { estado.filtroVend = e.target.value; render(); };
+  if ($('#filtroLinha')) $('#filtroLinha').onchange = e => { estado.filtroLinha = e.target.value; render(); };
+  if ($('#btnCsv')) $('#btnCsv').onclick = () => csvLancamentos(calcular(estado.lancamentos, participantes()));
+  if ($('#btnCsvResumo')) $('#btnCsvResumo').onclick = () => csvResumo(calcular(estado.lancamentos, participantes()));
+}
+
+/* ---------- Sessão ---------- */
+async function recarregar() {
+  const [perfis, lancs] = await Promise.all([banco.perfis(), banco.lancamentos()]);
+  estado.perfis = perfis;
+  estado.lancamentos = lancs;
+  estado.perfil = perfis.find(p => p.id === estado.usuario.id) || null;
+}
+
+async function iniciarSessao(usuario) {
+  estado.usuario = usuario;
+  await recarregar();
+  if (!estado.perfil) {
+    $('#telaLogin').classList.remove('oculto');
+    $('#msgLogin').innerHTML = '<div class="msg erro">Seu usuário ainda não foi liberado para esta campanha. Fale com o Sidney.</div>';
+    await banco.sair();
+    return;
+  }
+  $('#telaLogin').classList.add('oculto');
+  $('#telaApp').classList.remove('oculto');
+  $('#caixaUsuario').classList.remove('oculto');
+  $('#nomeUsuario').textContent = estado.perfil.nome + (ehAdmin() ? ' · supervisor' : '');
+  estado.aba = null;
+  render();
+}
+
+function mostrarLogin() {
+  $('#telaApp').classList.add('oculto');
+  $('#caixaUsuario').classList.add('oculto');
+  $('#telaLogin').classList.remove('oculto');
+  if (MODO_DEMO) {
+    $('#demoUsuarios').classList.remove('oculto');
+    $('#demoUsuarios').innerHTML = '<p class="nota">Entrar como:</p>' + banco.demoPerfis.map(p =>
+      `<button class="sec" style="margin:0 6px 6px 0" data-demo="${p.email}">${p.nome}${p.papel === 'admin' ? ' (supervisor)' : ''}</button>`).join('');
+    document.querySelectorAll('[data-demo]').forEach(b => b.onclick = async () => iniciarSessao(await banco.entrar(b.dataset.demo)));
+  }
+}
+
+$('#formLogin').onsubmit = async ev => {
+  ev.preventDefault();
+  $('#msgLogin').innerHTML = '';
+  try { iniciarSessao(await banco.entrar($('#loginEmail').value.trim(), $('#loginSenha').value)); }
+  catch (e) { $('#msgLogin').innerHTML = `<div class="msg erro">${esc(e.message)}</div>`; }
+};
+$('#btnSair').onclick = async () => { await banco.sair(); estado.usuario = null; estado.perfil = null; mostrarLogin(); };
+
+(async () => {
+  if (MODO_DEMO) $('#faixaDemo').classList.remove('oculto');
+  try {
+    const u = await banco.usuarioAtual();
+    if (u) await iniciarSessao(u); else mostrarLogin();
+  } catch (e) {
+    mostrarLogin();
+    $('#msgLogin').innerHTML = `<div class="msg erro">Erro ao conectar: ${esc(e.message)}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
