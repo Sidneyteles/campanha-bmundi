@@ -468,27 +468,25 @@ function telaMeu(r) {
     const x = v.linhas[cfg.id];
     const rs = cx => fmtR$(cx * CAMPANHA.garrafasPorCaixa * cfg.preco);
     return `<div class="linha-card">
-      <h3>${cfg.nome} ${x.metaOk ? '<span class="selo ok">Meta batida</span>' : x.minOk ? '<span class="selo pend">Mínimo ok</span>' : ''}</h3>
+      <h3>${cfg.nome} ${x.metaOk ? '<span class="selo ok">Meta batida</span>' : ''}</h3>
       <div class="peq">Sua meta</div>
       <div class="num">${fmtCx(x.metaCaixas)} caixas</div>
       <div class="peq">${rs(x.metaCaixas)}</div>
-      ${barra(Math.min(x.pctMeta, 1), x.metaOk, x.minimo / x.meta)}
+      ${barra(Math.min(x.pctMeta, 1), x.metaOk)}
       <div><b>Vendido: ${fmtCx(x.pontos / cfg.pontos)} cx</b> <span class="peq">(${fmtNum(Math.min(x.pctMeta, 9.99) * 100)}%)</span></div>
       <div class="peq">${x.metaOk ? 'Meta da linha cumprida' : `Faltam <b>${fmtCx(x.faltamMetaCaixas)} caixas</b> (${rs(x.faltamMetaCaixas)})`}</div>
-      <div class="peq" style="margin-top:6px">Mínimo obrigatório: ${fmtCx(x.minimo / cfg.pontos)} cx ${x.minOk ? '✓' : `· faltam ${fmtCx(x.faltamCaixas)} cx`}</div>
       ${x.bonus ? `<div class="peq">Inclui ${fmtCx(x.bonus / cfg.pontos)} cx extras de bônus por cliente novo</div>` : ''}
     </div>`;
   }).join('');
   const metaTotalR$ = CAMPANHA.linhas.reduce((s, c) => s + v.linhas[c.id].metaCaixas * CAMPANHA.garrafasPorCaixa * c.preco, 0);
   return `<div class="destaque ${v.linhasMetaOk.length === 4 ? 'ok' : ''}">
       <div><div class="peq">Linhas com meta batida</div><div class="grande">${v.linhasMetaOk.length} de 4</div></div>
-      <div><div class="peq">Linhas com mínimo obrigatório</div><div class="grande">${v.linhasMinOk.length} de 4</div></div>
       <div><div class="peq">Você já vendeu</div><div class="grande">${fmtR$(v.valor)}</div><div class="peq">de ${fmtR$(metaTotalR$)} nas 4 linhas</div></div>
       <div><div class="peq">Dias restantes</div><div class="grande">${diasRestantes()}</div></div>
     </div>
     <div class="card">
       <h2>Sua meta por linha</h2>
-      <p class="nota">A marca preta na barra é o mínimo obrigatório para viajar. "Vendido" já considera devoluções e o bônus de cliente novo.</p>
+      <p class="nota">"Vendido" já considera devoluções e o bônus de cliente novo.</p>
       <div class="grade">${cards}</div>
     </div>`;
 }
@@ -580,14 +578,14 @@ function telaRegras(r) {
     return `<tr><td>${c.nome}<br><span class="peq">${c.vinhos.join(', ')}</span></td>
       ${admin ? `<td class="n">${fmtNum(c.meta)} pts<br><span class="peq">${fmtCx(cxMeta)} cx · ${rs(cxMeta)}</span></td>` : ''}
       <td class="n">${fmtCx(cxSug)} cx<br><span class="peq">${rs(cxSug)}</span></td>
-      <td class="n">${fmtCx(cxMin)} cx<br><span class="peq">${rs(cxMin)}</span></td>
+      ${admin ? `<td class="n">${fmtCx(cxMin)} cx<br><span class="peq">${rs(cxMin)}</span></td>` : ''}
       <td class="n">Vale em dobro<br><span class="peq">${c.pontos} pts/cx viram ${c.pontos * 2}</span></td></tr>`;
   }).join('');
   return `<div class="card"><h2>Como funciona</h2>
     <ul>
       <li>Período: 16/11/2026 a 28/02/2027. Viagem a Mendoza em março de 2027.</li>
       <li>Cada vendedor tem uma <b>meta por linha</b>, em caixas de 6 garrafas.</li>
-      <li>O <b>mínimo obrigatório</b> em cada linha é a quantidade que não pode faltar para viajar.</li>
+      ${admin ? '<li>O <b>mínimo obrigatório</b> em cada linha é a quantidade que não pode faltar para viajar.</li>' : ''}
       <li>O <b>primeiro pedido de um cliente novo</b> vale em dobro. Cliente novo é um CNPJ que nunca comprou da BMundi. O bônus tem um limite total na campanha, então vale a pena abrir clientes cedo.</li>
       <li>Devoluções são descontadas.</li>
       ${admin ? '<li><b>Regra da vinícola:</b> a equipe precisa bater 3 das 4 linhas, e viaja quem tiver o mínimo nas 3 linhas batidas.</li>' : ''}
@@ -595,7 +593,7 @@ function telaRegras(r) {
     <div class="card"><h2>${admin ? 'Metas e mínimos' : 'Suas metas'}</h2>
       <p class="nota">Valores pelo preço de venda por garrafa.</p>
       <div class="tabela-rolagem"><table>
-        <thead><tr><th>Linha</th>${admin ? '<th class="n">Meta da equipe</th>' : ''}<th class="n">${admin ? 'Meta por vendedor' : 'Sua meta'}</th><th class="n">Mínimo obrigatório</th><th class="n">Cliente novo</th></tr></thead>
+        <thead><tr><th>Linha</th>${admin ? '<th class="n">Meta da equipe</th>' : ''}<th class="n">${admin ? 'Meta por vendedor' : 'Sua meta'}</th>${admin ? '<th class="n">Mínimo obrigatório</th>' : ''}<th class="n">Cliente novo</th></tr></thead>
         <tbody>${linhas}</tbody></table></div></div>`;
 }
 
