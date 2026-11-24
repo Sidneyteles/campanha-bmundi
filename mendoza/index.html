@@ -67,6 +67,11 @@
   .vazio{color:var(--suave);font-size:14px;padding:12px 0}
   .devol{color:var(--vermelho)}
   .demo{background:var(--amarelo-claro);color:var(--amarelo);text-align:center;font-size:13px;padding:6px}
+  .escolha{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--suave)}
+  .seg{display:flex;gap:8px;flex-wrap:wrap}
+  .seg label{flex-direction:row;align-items:center;gap:8px;padding:10px 16px;border:1px solid #cfd4dc;border-radius:8px;cursor:pointer;color:var(--texto);font-size:14.5px;background:#fff}
+  .seg input{margin:0;accent-color:var(--vinho)}
+  .seg label:has(input:checked){border-color:var(--vinho);background:var(--vinho-claro);font-weight:600}
   .oculto{display:none!important}
 </style>
 </head>
@@ -387,12 +392,16 @@ function telaLancar() {
           </select></label>
         <label>Data do faturamento <input type="date" id="fData" required min="${CAMPANHA.inicio}" max="${CAMPANHA.fim}" value="${esc(v.data)}"></label>
         <label>Cliente <input id="fCliente" required maxlength="120" value="${esc(v.cliente)}" placeholder="Nome do cliente"></label>
-        <label>CNPJ <input id="fCnpj" maxlength="18" value="${esc(v.cnpj)}" placeholder="00.000.000/0000-00"></label>
         <label>Linha <select id="fLinha">${opcoesLinha}</select></label>
         <label>Vinho <select id="fVinho"></select></label>
         <label>Caixas (6 garrafas) <input type="number" id="fCaixas" required min="0.5" step="0.5" value="${esc(v.caixas)}"></label>
         <label>Nota fiscal <input id="fNota" maxlength="30" value="${esc(v.nota_fiscal)}" placeholder="Opcional"></label>
-        <label class="check" id="boxNovo"><input type="checkbox" id="fNovo" ${v.cliente_novo ? 'checked' : ''}> Primeiro pedido de cliente novo</label>
+        <div class="escolha" id="boxNovo"><span>Este cliente é:</span>
+          <div class="seg">
+            <label><input type="radio" name="fOrigem" value="carteira" ${l && !v.cliente_novo ? 'checked' : ''}> Cliente da carteira</label>
+            <label><input type="radio" name="fOrigem" value="novo" ${l && v.cliente_novo ? 'checked' : ''}> Cliente novo</label>
+          </div>
+        </div>
       </div>
       <div class="preview" id="previa"></div>
       <div class="botoes">
@@ -402,13 +411,15 @@ function telaLancar() {
       <div id="msgVenda"></div>
     </form>
   </div>
-  <p class="peq">Cliente novo é um CNPJ que nunca comprou da BMundi. O bônus vale só no primeiro pedido faturado e entregue, e tem um limite por linha para a equipe toda.</p>`;
+  <p class="peq">Cliente novo é quem nunca comprou da BMundi. O bônus vale só no primeiro pedido faturado e entregue, e tem um limite por linha para a equipe toda.</p>`;
 }
 
 function atualizarVinhos(selecionado) {
   const cfg = LINHA[$('#fLinha').value];
   $('#fVinho').innerHTML = cfg.vinhos.map(w => `<option ${w === selecionado ? 'selected' : ''}>${esc(w)}</option>`).join('');
 }
+
+function origemEscolhida() { const r = document.querySelector('input[name="fOrigem"]:checked'); return r ? r.value : null; }
 
 function atualizarPrevia() {
   const cfg = LINHA[$('#fLinha').value];
@@ -420,7 +431,7 @@ function atualizarPrevia() {
   let txt = devol
     ? `Esta devolução desconta <b>${fmtNum(pts)} pontos</b> e ${fmtR$(valor)}.`
     : `Esta venda vale <b>${fmtNum(pts)} pontos</b> (${fmtR$(valor)}).`;
-  if (!devol && $('#fNovo').checked) txt += ` Como é cliente novo, pode somar até <b>${fmtNum(pts)} pontos extras</b>, se ainda houver bônus disponível na linha.`;
+  if (!devol && origemEscolhida() === 'novo') txt += ` Como é cliente novo, pode somar até <b>${fmtNum(pts)} pontos extras</b>, se ainda houver bônus disponível na linha.`;
   $('#previa').innerHTML = txt;
 }
 
@@ -431,20 +442,20 @@ async function salvarVenda(ev) {
     tipo: $('#fTipo').value,
     data: $('#fData').value,
     cliente: $('#fCliente').value.trim(),
-    cnpj: $('#fCnpj').value.trim(),
     linha: $('#fLinha').value,
     vinho: $('#fVinho').value,
     caixas: Number($('#fCaixas').value),
     nota_fiscal: $('#fNota').value.trim(),
   };
-  reg.cliente_novo = reg.tipo === 'venda' && $('#fNovo').checked;
+  const origem = origemEscolhida();
+  reg.cliente_novo = reg.tipo === 'venda' && origem === 'novo';
   if (reg.data < CAMPANHA.inicio || reg.data > CAMPANHA.fim) { msg.innerHTML = '<div class="msg erro">A data precisa estar dentro do período da campanha (16/11/2026 a 28/02/2027).</div>'; return; }
   if (!(reg.caixas > 0)) { msg.innerHTML = '<div class="msg erro">Informe a quantidade de caixas.</div>'; return; }
-  if (reg.cliente_novo && !reg.cnpj) { msg.innerHTML = '<div class="msg erro">Para cliente novo, informe o CNPJ.</div>'; return; }
+  if (reg.tipo === 'venda' && !origem) { msg.innerHTML = '<div class="msg erro">Marque se é cliente da carteira ou cliente novo.</div>'; return; }
   if (reg.cliente_novo) {
-    const cnpjLimpo = reg.cnpj.replace(/\D/g, '');
-    const repetido = estado.lancamentos.some(x => x.cliente_novo && x.id !== estado.editando && x.linha === reg.linha && (x.cnpj || '').replace(/\D/g, '') === cnpjLimpo);
-    if (repetido) { msg.innerHTML = '<div class="msg erro">Este CNPJ já foi lançado como cliente novo nesta linha. O bônus vale só no primeiro pedido.</div>'; return; }
+    const nome = t => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const repetido = estado.lancamentos.some(x => x.cliente_novo && x.id !== estado.editando && x.linha === reg.linha && nome(x.cliente) === nome(reg.cliente));
+    if (repetido) { msg.innerHTML = '<div class="msg erro">Este cliente já foi lançado como cliente novo nesta linha. O bônus vale só no primeiro pedido.</div>'; return; }
   }
   try {
     if (estado.editando) await banco.atualizar(estado.editando, reg);
@@ -553,7 +564,7 @@ function telaLancamentos(r) {
     return `<tr class="${dev ? 'devol' : ''}">
       <td>${fmtData(l.data)}</td>
       ${ehAdmin() ? `<td>${esc(nomeDe(l.vendedor_id))}</td>` : ''}
-      <td>${esc(l.cliente)}${l.cliente_novo ? ' <span class="selo ok">novo</span>' : ''}${dev ? ' <span class="selo nao">devolução</span>' : ''}<br><span class="peq">${esc(l.cnpj)}${l.nota_fiscal ? ' · NF ' + esc(l.nota_fiscal) : ''}</span></td>
+      <td>${esc(l.cliente)}${l.cliente_novo ? ' <span class="selo ok">novo</span>' : ''}${dev ? ' <span class="selo nao">devolução</span>' : ''}${l.nota_fiscal ? `<br><span class="peq">NF ${esc(l.nota_fiscal)}</span>` : ''}</td>
       <td>${esc(LINHA[l.linha] ? LINHA[l.linha].nome : l.linha)}<br><span class="peq">${esc(l.vinho)}</span></td>
       <td class="n">${dev ? '-' : ''}${fmtCx(l.caixas)}</td>
       <td class="n">${fmtNum(d.pontos)}${d.bonus ? `<br><span class="peq">+${fmtNum(d.bonus)} bônus</span>` : ''}</td>
@@ -586,7 +597,7 @@ function telaRegras(r) {
       <li>Período: 16/11/2026 a 28/02/2027. Viagem a Mendoza em março de 2027.</li>
       <li>Cada vendedor tem uma <b>meta por linha</b>, em caixas de 6 garrafas.</li>
       ${admin ? '<li>O <b>mínimo obrigatório</b> em cada linha é a quantidade que não pode faltar para viajar.</li>' : ''}
-      <li>O <b>primeiro pedido de um cliente novo</b> vale em dobro. Cliente novo é um CNPJ que nunca comprou da BMundi. O bônus tem um limite total na campanha, então vale a pena abrir clientes cedo.</li>
+      <li>O <b>primeiro pedido de um cliente novo</b> vale em dobro. Cliente novo é quem nunca comprou da BMundi. O bônus tem um limite total na campanha, então vale a pena abrir clientes cedo.</li>
       <li>Devoluções são descontadas.</li>
       ${admin ? '<li><b>Regra da vinícola:</b> a equipe precisa bater 3 das 4 linhas, e viaja quem tiver o mínimo nas 3 linhas batidas.</li>' : ''}
     </ul></div>
@@ -608,11 +619,11 @@ function baixarCsv(nome, linhas) {
 const numCsv = n => String(Math.round(n * 100) / 100).replace('.', ',');
 
 function csvLancamentos(r) {
-  const cab = ['Data','Vendedor','Tipo','Cliente','CNPJ','Cliente novo','Linha','Vinho','Caixas','Pontos','Bônus','Valor (R$)','Nota fiscal'];
+  const cab = ['Data','Vendedor','Tipo','Cliente','Cliente novo','Linha','Vinho','Caixas','Pontos','Bônus','Valor (R$)','Nota fiscal'];
   const rows = estado.lancamentos
     .filter(l => ehAdmin() || l.vendedor_id === estado.perfil.id)
     .map(l => { const d = r.detalhe[l.id] || { pontos:0, bonus:0, valor:0 };
-      return [fmtData(l.data), nomeDe(l.vendedor_id), l.tipo === 'devolucao' ? 'Devolução' : 'Venda', l.cliente, l.cnpj, l.cliente_novo ? 'Sim' : 'Não',
+      return [fmtData(l.data), nomeDe(l.vendedor_id), l.tipo === 'devolucao' ? 'Devolução' : 'Venda', l.cliente, l.cliente_novo ? 'Sim' : 'Não',
         LINHA[l.linha] ? LINHA[l.linha].nome : l.linha, l.vinho, numCsv(l.caixas), numCsv(d.pontos), numCsv(d.bonus), numCsv(d.valor), l.nota_fiscal]; });
   baixarCsv('mendoza-lancamentos.csv', [cab, ...rows]);
 }
@@ -638,9 +649,9 @@ function ligarEventos() {
     const l = estado.editando ? estado.lancamentos.find(x => x.id === estado.editando) : null;
     atualizarVinhos(l ? l.vinho : null);
     $('#fLinha').onchange = () => { atualizarVinhos(); atualizarPrevia(); };
-    ['#fCaixas','#fTipo','#fNovo'].forEach(s => $(s).addEventListener('input', atualizarPrevia));
+    ['#fCaixas','#fTipo'].forEach(s => $(s).addEventListener('input', atualizarPrevia));
+    document.querySelectorAll('input[name="fOrigem"]').forEach(r => r.addEventListener('change', () => { $('#msgVenda').innerHTML = ''; atualizarPrevia(); }));
     $('#fTipo').addEventListener('change', atualizarPrevia);
-    $('#fNovo').addEventListener('change', atualizarPrevia);
     atualizarPrevia();
     $('#formVenda').onsubmit = salvarVenda;
     if ($('#btnCancelarEdicao')) $('#btnCancelarEdicao').onclick = () => { estado.editando = null; estado.aba = 'lancamentos'; render(); };
