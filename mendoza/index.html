@@ -82,7 +82,7 @@
 <header>
   <div>
     <h1>Rumo a Mendoza</h1>
-    <div class="sub">Campanha Reserva de los Andes · BMundi · 16/11/2026 a 28/02/2027</div>
+    <div class="sub">Campanha Reserva De Los Andes · BMundi · 25/11/2026 a 28/02/2027</div>
   </div>
   <div class="usuario oculto" id="caixaUsuario">
     <span id="nomeUsuario"></span>
@@ -126,14 +126,14 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Cjs7KNi3nM4cDc-cN-vomQ_ljHYvYHL';
    Preço = preço de venda por garrafa. bonusMax = limite de pontos extras
    da equipe por cliente novo, em cada linha. */
 const CAMPANHA = {
-  inicio: '2026-11-16',
+  inicio: '2026-11-25',
   fim: '2027-02-28',
   garrafasPorCaixa: 6,
   minimoIndividual: 0.15,
   linhasNecessarias: 3,
   numVendedores: 4,          // usado para dividir a meta da equipe em metas individuais
   linhas: [
-    { id:'reserva',    nome:'Reserva de los Andes', pontos:5,  meta:3500, preco:29.90, bonusMax:700, metaVendedorCaixas:240,
+    { id:'reserva',    nome:'Reserva De Los Andes', pontos:5,  meta:3500, preco:29.90, bonusMax:700, metaVendedorCaixas:240,
       vinhos:['Malbec','Cabernet Sauvignon','Chardonnay','Malbec Branco'] },
     { id:'margaritas', nome:'Finca Las Margaritas', pontos:15, meta:1500, preco:39.90, bonusMax:300, metaVendedorCaixas:34,
       vinhos:['Malbec','Cabernet Sauvignon','Syrah','Chardonnay','Malbec Rosé'] },
@@ -270,7 +270,7 @@ function criarBancoDemo() {
   const L = (vend, data, cliente, linha, vinho, caixas, novo=false, tipo='venda') =>
     ({ id: seq++, vendedor_id: vend, data, cliente, cnpj:'', linha, vinho, caixas, cliente_novo: novo, tipo, nota_fiscal:'', criado_em: new Date(2026,10,16, 8, seq).toISOString() });
   let dados = [
-    L('u-mozart','2026-11-17','Empório Lagoa','reserva','Malbec',60),
+    L('u-mozart','2026-11-25','Empório Lagoa','reserva','Malbec',60),
     L('u-mozart','2026-11-18','Adega Centro','margaritas','Malbec',12, true),
     L('u-mozart','2026-11-19','Super Ilha','sinfonazo','Sinfonazo',10),
     L('u-fernanda','2026-11-17','Restaurante Mar','reserva','Cabernet Sauvignon',90),
@@ -449,7 +449,7 @@ async function salvarVenda(ev) {
   };
   const origem = origemEscolhida();
   reg.cliente_novo = reg.tipo === 'venda' && origem === 'novo';
-  if (reg.data < CAMPANHA.inicio || reg.data > CAMPANHA.fim) { msg.innerHTML = '<div class="msg erro">A data precisa estar dentro do período da campanha (16/11/2026 a 28/02/2027).</div>'; return; }
+  if (reg.data < CAMPANHA.inicio || reg.data > CAMPANHA.fim) { msg.innerHTML = '<div class="msg erro">A data precisa estar dentro do período da campanha (25/11/2026 a 28/02/2027).</div>'; return; }
   if (!(reg.caixas > 0)) { msg.innerHTML = '<div class="msg erro">Informe a quantidade de caixas.</div>'; return; }
   if (reg.tipo === 'venda' && !origem) { msg.innerHTML = '<div class="msg erro">Marque se é cliente da carteira ou cliente novo.</div>'; return; }
   if (reg.cliente_novo) {
@@ -594,7 +594,7 @@ function telaRegras(r) {
   }).join('');
   return `<div class="card"><h2>Como funciona</h2>
     <ul>
-      <li>Período: 16/11/2026 a 28/02/2027. Viagem a Mendoza em março de 2027.</li>
+      <li>Período: 25/11/2026 a 28/02/2027. Viagem a Mendoza em março de 2027.</li>
       <li>Cada vendedor tem uma <b>meta por linha</b>, em caixas de 6 garrafas.</li>
       ${admin ? '<li>O <b>mínimo obrigatório</b> em cada linha é a quantidade que não pode faltar para viajar.</li>' : ''}
       <li>O <b>primeiro pedido de um cliente novo</b> vale em dobro. Cliente novo é quem nunca comprou da BMundi. O bônus tem um limite total na campanha, então vale a pena abrir clientes cedo.</li>
