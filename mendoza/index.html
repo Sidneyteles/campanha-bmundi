@@ -601,15 +601,17 @@ function telaRegras(r) {
     const cxMeta = c.meta / c.pontos, cxMin = cxMeta * CAMPANHA.minimoIndividual, cxSug = c.metaVendedorCaixas;
     const rs = cx => fmtR$(cx * CAMPANHA.garrafasPorCaixa * c.preco);
     return `<tr><td>${c.nome}<br><span class="peq">${c.vinhos.map(esc).join(c.id === 'reserva' ? '<br>' : ', ')}</span></td>
+      <td class="n"><b>${c.pontos} pts</b></td>
       ${admin ? `<td class="n">${fmtNum(c.meta)} pts<br><span class="peq">${fmtCx(cxMeta)} cx · ${rs(cxMeta)}</span></td>` : ''}
       <td class="n">${fmtCx(cxSug)} cx<br><span class="peq">${rs(cxSug)}</span></td>
       ${admin ? `<td class="n">${fmtCx(cxMin)} cx<br><span class="peq">${rs(cxMin)}</span></td>` : ''}
-      <td class="n">Vale em dobro<br><span class="peq">${c.pontos} pts/cx viram ${c.pontos * 2}</span></td></tr>`;
+      <td class="n">${c.pontos * 2} pts por caixa<br><span class="peq">no 1º pedido</span></td></tr>`;
   }).join('');
   return `<div class="card"><h2>Como funciona</h2>
     <ul>
       <li>Período: 25/11/2026 a 28/02/2027. Viagem a Mendoza em março de 2027.</li>
       <li>Cada vendedor tem uma <b>meta por linha</b>, em caixas de 6 garrafas.</li>
+      <li>Cada caixa vendida vale <b>pontos</b>, conforme a tabela da Reserva De Los Andes: 5 pontos para Reserva De Los Andes e Valle De Luna, 15 para Finca Las Margaritas e Sinfonazo, e 50 para Celador.</li>
       ${admin ? '<li>O <b>mínimo obrigatório</b> em cada linha é a quantidade que não pode faltar para viajar.</li>' : ''}
       <li>O <b>primeiro pedido de um cliente novo</b> vale em dobro. Cliente novo é quem nunca comprou da BMundi. O bônus tem um limite total na campanha, então vale a pena abrir clientes cedo.</li>
       <li>Devoluções são descontadas.</li>
@@ -618,7 +620,7 @@ function telaRegras(r) {
     <div class="card"><h2>${admin ? 'Metas e mínimos' : 'Suas metas'}</h2>
       <p class="nota">Valores pelo preço de venda por garrafa.</p>
       <div class="tabela-rolagem"><table>
-        <thead><tr><th>Linha / uvas</th>${admin ? '<th class="n">Meta da equipe</th>' : ''}<th class="n">${admin ? 'Meta por vendedor' : 'Sua meta'}</th>${admin ? '<th class="n">Mínimo obrigatório</th>' : ''}<th class="n">Cliente novo</th></tr></thead>
+        <thead><tr><th>Linha / uvas</th><th class="n">Pontos por caixa</th>${admin ? '<th class="n">Meta da equipe</th>' : ''}<th class="n">${admin ? 'Meta por vendedor' : 'Sua meta'}</th>${admin ? '<th class="n">Mínimo obrigatório</th>' : ''}<th class="n">Cliente novo</th></tr></thead>
         <tbody>${linhas}</tbody></table></div></div>`;
 }
 
