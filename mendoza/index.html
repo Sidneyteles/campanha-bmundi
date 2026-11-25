@@ -133,8 +133,8 @@ const CAMPANHA = {
   linhasNecessarias: 3,
   numVendedores: 4,          // usado para dividir a meta da equipe em metas individuais
   linhas: [
-    { id:'reserva',    nome:'Reserva De Los Andes', pontos:5,  meta:3500, preco:29.90, bonusMax:700, metaVendedorCaixas:240,
-      vinhos:['Malbec','Cabernet Sauvignon','Chardonnay','Malbec Branco'] },
+    { id:'reserva',    nome:'Reserva De Los Andes + Valle De Luna', pontos:5,  meta:3500, preco:29.90, bonusMax:700, metaVendedorCaixas:240,
+      vinhos:['Reserva De Los Andes: Malbec, Cabernet Sauvignon, Chardonnay, Malbec Branco', 'Valle De Luna: Malbec/Bonarda/Tempranillo, Malbec, Cabernet Sauvignon'] },
     { id:'margaritas', nome:'Finca Las Margaritas', pontos:15, meta:1500, preco:39.90, bonusMax:300, metaVendedorCaixas:34,
       vinhos:['Malbec','Cabernet Sauvignon','Syrah','Chardonnay','Malbec Rosé'] },
     { id:'sinfonazo',  nome:'Sinfonazo',            pontos:15, meta:1500, preco:49.90, bonusMax:300, metaVendedorCaixas:34,
@@ -144,6 +144,19 @@ const CAMPANHA = {
   ],
 };
 const LINHA = Object.fromEntries(CAMPANHA.linhas.map(l => [l.id, l]));
+
+/* Linhas que aparecem no formulário. Valle De Luna soma na meta da Reserva De Los Andes:
+   é gravada como linha 'reserva', com a uva prefixada por "Valle De Luna · ". */
+const PREFIXO_VALLE = 'Valle De Luna · ';
+const LINHAS_FORM = [
+  { id:'reserva', grupo:'reserva', nome:'Reserva De Los Andes', uvas:['Malbec','Cabernet Sauvignon','Chardonnay','Malbec Branco'], prefixo:'' },
+  { id:'valle',   grupo:'reserva', nome:'Valle De Luna',        uvas:['Malbec/Bonarda/Tempranillo','Malbec','Cabernet Sauvignon'], prefixo:PREFIXO_VALLE },
+  ...CAMPANHA.linhas.filter(l => l.id !== 'reserva').map(l => ({ id:l.id, grupo:l.id, nome:l.nome, uvas:l.vinhos, prefixo:'' })),
+];
+const LINHA_FORM = Object.fromEntries(LINHAS_FORM.map(l => [l.id, l]));
+function linhaFormDe(l) { return l.linha === 'reserva' && String(l.vinho || '').startsWith(PREFIXO_VALLE) ? LINHA_FORM.valle : (LINHA_FORM[l.linha] || null); }
+function uvaDe(l) { const f = linhaFormDe(l); return f && f.prefixo ? String(l.vinho).slice(f.prefixo.length) : l.vinho; }
+function nomeLinhaLanc(l) { const f = linhaFormDe(l); return f ? f.nome : l.linha; }
 
 /* =====================================================================
    2. CÁLCULO DA CAMPANHA
@@ -379,7 +392,8 @@ function cardsEquipe(r) {
 function telaLancar() {
   const l = estado.editando ? estado.lancamentos.find(x => x.id === estado.editando) : null;
   const v = l || { data: hojeISO(), cliente:'', cnpj:'', linha:'reserva', vinho:'', caixas:'', cliente_novo:false, tipo:'venda', nota_fiscal:'' };
-  const opcoesLinha = CAMPANHA.linhas.map(c => `<option value="${c.id}" ${c.id === v.linha ? 'selected' : ''}>${c.nome}</option>`).join('');
+  const linhaSel = l ? linhaFormDe(l).id : 'reserva';
+  const opcoesLinha = LINHAS_FORM.map(c => `<option value="${c.id}" ${c.id === linhaSel ? 'selected' : ''}>${c.nome}</option>`).join('');
   return `<div class="card">
     <h2>${l ? 'Editar lançamento' : 'Lançar venda'}</h2>
     <p class="nota">Lance cada pedido faturado. Devoluções entram como lançamento próprio e descontam os pontos.</p>
@@ -393,7 +407,7 @@ function telaLancar() {
         <label>Data do faturamento <input type="date" id="fData" required min="${CAMPANHA.inicio}" max="${CAMPANHA.fim}" value="${esc(v.data)}"></label>
         <label>Cliente <input id="fCliente" required maxlength="120" value="${esc(v.cliente)}" placeholder="Nome do cliente"></label>
         <label>Linha <select id="fLinha">${opcoesLinha}</select></label>
-        <label>Vinho <select id="fVinho"></select></label>
+        <label>Uva <select id="fVinho"></select></label>
         <label>Caixas (6 garrafas) <input type="number" id="fCaixas" required min="0.5" step="0.5" value="${esc(v.caixas)}"></label>
         <label>Nota fiscal <input id="fNota" maxlength="30" value="${esc(v.nota_fiscal)}" placeholder="Opcional"></label>
         <div class="escolha" id="boxNovo"><span>Este cliente é:</span>
@@ -415,14 +429,14 @@ function telaLancar() {
 }
 
 function atualizarVinhos(selecionado) {
-  const cfg = LINHA[$('#fLinha').value];
-  $('#fVinho').innerHTML = cfg.vinhos.map(w => `<option ${w === selecionado ? 'selected' : ''}>${esc(w)}</option>`).join('');
+  const cfg = LINHA_FORM[$('#fLinha').value];
+  $('#fVinho').innerHTML = cfg.uvas.map(w => `<option ${w === selecionado ? 'selected' : ''}>${esc(w)}</option>`).join('');
 }
 
 function origemEscolhida() { const r = document.querySelector('input[name="fOrigem"]:checked'); return r ? r.value : null; }
 
 function atualizarPrevia() {
-  const cfg = LINHA[$('#fLinha').value];
+  const cfg = LINHA[LINHA_FORM[$('#fLinha').value].grupo];
   const cx = Number($('#fCaixas').value) || 0;
   const devol = $('#fTipo').value === 'devolucao';
   $('#boxNovo').classList.toggle('oculto', devol);
@@ -442,8 +456,8 @@ async function salvarVenda(ev) {
     tipo: $('#fTipo').value,
     data: $('#fData').value,
     cliente: $('#fCliente').value.trim(),
-    linha: $('#fLinha').value,
-    vinho: $('#fVinho').value,
+    linha: LINHA_FORM[$('#fLinha').value].grupo,
+    vinho: LINHA_FORM[$('#fLinha').value].prefixo + $('#fVinho').value,
     caixas: Number($('#fCaixas').value),
     nota_fiscal: $('#fNota').value.trim(),
   };
@@ -565,7 +579,7 @@ function telaLancamentos(r) {
       <td>${fmtData(l.data)}</td>
       ${ehAdmin() ? `<td>${esc(nomeDe(l.vendedor_id))}</td>` : ''}
       <td>${esc(l.cliente)}${l.cliente_novo ? ' <span class="selo ok">novo</span>' : ''}${dev ? ' <span class="selo nao">devolução</span>' : ''}${l.nota_fiscal ? `<br><span class="peq">NF ${esc(l.nota_fiscal)}</span>` : ''}</td>
-      <td>${esc(LINHA[l.linha] ? LINHA[l.linha].nome : l.linha)}<br><span class="peq">${esc(l.vinho)}</span></td>
+      <td>${esc(nomeLinhaLanc(l))}<br><span class="peq">${esc(uvaDe(l))}</span></td>
       <td class="n">${dev ? '-' : ''}${fmtCx(l.caixas)}</td>
       <td class="n">${fmtNum(d.pontos)}${d.bonus ? `<br><span class="peq">+${fmtNum(d.bonus)} bônus</span>` : ''}</td>
       <td class="n">${fmtR$(d.valor)}</td>
@@ -575,7 +589,7 @@ function telaLancamentos(r) {
   return `<div class="card"><h2>${ehAdmin() ? 'Todos os lançamentos' : 'Meus lançamentos'}</h2>
     ${filtros}
     <div class="tabela-rolagem"><table>
-      <thead><tr><th>Data</th>${ehAdmin() ? '<th>Vendedor</th>' : ''}<th>Cliente</th><th>Linha / vinho</th><th class="n">Caixas</th><th class="n">Pontos</th><th class="n">Valor</th><th></th></tr></thead>
+      <thead><tr><th>Data</th>${ehAdmin() ? '<th>Vendedor</th>' : ''}<th>Cliente</th><th>Linha / uva</th><th class="n">Caixas</th><th class="n">Pontos</th><th class="n">Valor</th><th></th></tr></thead>
       <tbody>${linhas || `<tr><td colspan="8" class="vazio">Nenhum lançamento ainda.</td></tr>`}</tbody>
     </table></div></div>`;
 }
@@ -586,7 +600,7 @@ function telaRegras(r) {
   const linhas = CAMPANHA.linhas.map(c => {
     const cxMeta = c.meta / c.pontos, cxMin = cxMeta * CAMPANHA.minimoIndividual, cxSug = c.metaVendedorCaixas;
     const rs = cx => fmtR$(cx * CAMPANHA.garrafasPorCaixa * c.preco);
-    return `<tr><td>${c.nome}<br><span class="peq">${c.vinhos.join(', ')}</span></td>
+    return `<tr><td>${c.nome}<br><span class="peq">${c.vinhos.map(esc).join(c.id === 'reserva' ? '<br>' : ', ')}</span></td>
       ${admin ? `<td class="n">${fmtNum(c.meta)} pts<br><span class="peq">${fmtCx(cxMeta)} cx · ${rs(cxMeta)}</span></td>` : ''}
       <td class="n">${fmtCx(cxSug)} cx<br><span class="peq">${rs(cxSug)}</span></td>
       ${admin ? `<td class="n">${fmtCx(cxMin)} cx<br><span class="peq">${rs(cxMin)}</span></td>` : ''}
@@ -604,7 +618,7 @@ function telaRegras(r) {
     <div class="card"><h2>${admin ? 'Metas e mínimos' : 'Suas metas'}</h2>
       <p class="nota">Valores pelo preço de venda por garrafa.</p>
       <div class="tabela-rolagem"><table>
-        <thead><tr><th>Linha</th>${admin ? '<th class="n">Meta da equipe</th>' : ''}<th class="n">${admin ? 'Meta por vendedor' : 'Sua meta'}</th>${admin ? '<th class="n">Mínimo obrigatório</th>' : ''}<th class="n">Cliente novo</th></tr></thead>
+        <thead><tr><th>Linha / uvas</th>${admin ? '<th class="n">Meta da equipe</th>' : ''}<th class="n">${admin ? 'Meta por vendedor' : 'Sua meta'}</th>${admin ? '<th class="n">Mínimo obrigatório</th>' : ''}<th class="n">Cliente novo</th></tr></thead>
         <tbody>${linhas}</tbody></table></div></div>`;
 }
 
@@ -619,12 +633,12 @@ function baixarCsv(nome, linhas) {
 const numCsv = n => String(Math.round(n * 100) / 100).replace('.', ',');
 
 function csvLancamentos(r) {
-  const cab = ['Data','Vendedor','Tipo','Cliente','Cliente novo','Linha','Vinho','Caixas','Pontos','Bônus','Valor (R$)','Nota fiscal'];
+  const cab = ['Data','Vendedor','Tipo','Cliente','Cliente novo','Linha','Uva','Caixas','Pontos','Bônus','Valor (R$)','Nota fiscal'];
   const rows = estado.lancamentos
     .filter(l => ehAdmin() || l.vendedor_id === estado.perfil.id)
     .map(l => { const d = r.detalhe[l.id] || { pontos:0, bonus:0, valor:0 };
       return [fmtData(l.data), nomeDe(l.vendedor_id), l.tipo === 'devolucao' ? 'Devolução' : 'Venda', l.cliente, l.cliente_novo ? 'Sim' : 'Não',
-        LINHA[l.linha] ? LINHA[l.linha].nome : l.linha, l.vinho, numCsv(l.caixas), numCsv(d.pontos), numCsv(d.bonus), numCsv(d.valor), l.nota_fiscal]; });
+        nomeLinhaLanc(l), uvaDe(l), numCsv(l.caixas), numCsv(d.pontos), numCsv(d.bonus), numCsv(d.valor), l.nota_fiscal]; });
   baixarCsv('mendoza-lancamentos.csv', [cab, ...rows]);
 }
 
@@ -647,7 +661,7 @@ function ligarEventos() {
   document.querySelectorAll('[data-aba]').forEach(b => b.onclick = () => { estado.aba = b.dataset.aba; if (estado.aba !== 'lancar') estado.editando = null; render(); });
   if ($('#formVenda')) {
     const l = estado.editando ? estado.lancamentos.find(x => x.id === estado.editando) : null;
-    atualizarVinhos(l ? l.vinho : null);
+    atualizarVinhos(l ? uvaDe(l) : null);
     $('#fLinha').onchange = () => { atualizarVinhos(); atualizarPrevia(); };
     ['#fCaixas','#fTipo'].forEach(s => $(s).addEventListener('input', atualizarPrevia));
     document.querySelectorAll('input[name="fOrigem"]').forEach(r => r.addEventListener('change', () => { $('#msgVenda').innerHTML = ''; atualizarPrevia(); }));
