@@ -72,6 +72,10 @@
   .seg label{flex-direction:row;align-items:center;gap:8px;padding:10px 16px;border:1px solid #cfd4dc;border-radius:8px;cursor:pointer;color:var(--texto);font-size:14.5px;background:#fff}
   .seg input{margin:0;accent-color:var(--vinho)}
   .seg label:has(input:checked){border-color:var(--vinho);background:var(--vinho-claro);font-weight:600}
+  .itens-titulo{margin:16px 0 6px;font-size:13px;color:var(--suave)}
+  .item{display:grid;grid-template-columns:1.3fr 1.3fr 1fr auto;gap:10px;align-items:end;padding:10px;border:1px solid var(--borda);border-radius:10px;margin-bottom:8px;background:#fcfcfd}
+  .item .iRemover{padding-bottom:10px}
+  @media (max-width:640px){ .item{grid-template-columns:1fr 1fr} }
   .oculto{display:none!important}
 </style>
 </head>
@@ -265,6 +269,7 @@ function criarBancoSupabase() {
     async perfis() { return tratar(await sb.from('mendoza_perfis').select('*').order('nome')); },
     async lancamentos() { return tratar(await sb.from('mendoza_lancamentos').select('*').order('data', { ascending:false }).order('criado_em', { ascending:false })); },
     async inserir(l) { return tratar(await sb.from('mendoza_lancamentos').insert(l).select().single()); },
+    async inserirVarios(ls) { return tratar(await sb.from('mendoza_lancamentos').insert(ls).select()); },
     async atualizar(id, l) { return tratar(await sb.from('mendoza_lancamentos').update(l).eq('id', id).select().single()); },
     async excluir(id) { return tratar(await sb.from('mendoza_lancamentos').delete().eq('id', id)); },
     async meusBonus() { const d = tratar(await sb.rpc('mendoza_meus_bonus')); return Object.fromEntries((d || []).map(x => [x.lancamento_id, Number(x.bonus)])); },
@@ -303,6 +308,7 @@ function criarBancoDemo() {
     async lancamentos() { const adm = perfis.find(p => p.id === atual.id).papel === 'admin'; return [...dados].filter(x => adm || x.vendedor_id === atual.id).sort((a,b) => b.data.localeCompare(a.data) || b.criado_em.localeCompare(a.criado_em)).map(x => ({ ...x })); },
     async meusBonus() { const r = calcular(dados, perfis.filter(p => p.participa)); return Object.fromEntries(dados.filter(x => x.vendedor_id === atual.id).map(x => [x.id, r.detalhe[x.id] ? r.detalhe[x.id].bonus : 0])); },
     async inserir(l) { const n = { ...l, id: seq++, vendedor_id: atual.id, criado_em: new Date().toISOString() }; dados.push(n); return n; },
+    async inserirVarios(ls) { return Promise.all(ls.map(l => this.inserir(l))); },
     async atualizar(id, l) { const i = dados.findIndex(x => x.id === id); dados[i] = { ...dados[i], ...l }; return dados[i]; },
     async excluir(id) { dados = dados.filter(x => x.id !== id); },
   };
@@ -391,12 +397,10 @@ function cardsEquipe(r) {
 /* ---------- Tela: Lançar venda ---------- */
 function telaLancar() {
   const l = estado.editando ? estado.lancamentos.find(x => x.id === estado.editando) : null;
-  const v = l || { data: hojeISO(), cliente:'', cnpj:'', linha:'reserva', vinho:'', caixas:'', cliente_novo:false, tipo:'venda', nota_fiscal:'' };
-  const linhaSel = l ? linhaFormDe(l).id : 'reserva';
-  const opcoesLinha = LINHAS_FORM.map(c => `<option value="${c.id}" ${c.id === linhaSel ? 'selected' : ''}>${c.nome}</option>`).join('');
+  const v = l || { data: hojeISO(), cliente:'', tipo:'venda', nota_fiscal:'', cliente_novo:false };
   return `<div class="card">
-    <h2>${l ? 'Editar lançamento' : 'Lançar venda'}</h2>
-    <p class="nota">Lance cada pedido faturado. Devoluções entram como lançamento próprio e descontam os pontos.</p>
+    <h2>${l ? 'Editar lançamento' : 'Lançar pedido'}</h2>
+    <p class="nota">${l ? 'Você está editando um item de um pedido.' : 'Lance cada pedido faturado. Se o pedido tiver mais de um vinho da campanha, use "Adicionar outro item".'} Devoluções entram como lançamento próprio e descontam os pontos.</p>
     <form id="formVenda">
       <div class="campos">
         <label>Tipo
@@ -406,9 +410,6 @@ function telaLancar() {
           </select></label>
         <label>Data do faturamento <input type="date" id="fData" required min="${CAMPANHA.inicio}" max="${CAMPANHA.fim}" value="${esc(v.data)}"></label>
         <label>Cliente <input id="fCliente" required maxlength="120" value="${esc(v.cliente)}" placeholder="Nome do cliente"></label>
-        <label>Linha <select id="fLinha">${opcoesLinha}</select></label>
-        <label>Uva <select id="fVinho"></select></label>
-        <label>Caixas (6 garrafas) <input type="number" id="fCaixas" required min="0.5" step="0.5" value="${esc(v.caixas)}"></label>
         <label>Nota fiscal <input id="fNota" maxlength="30" value="${esc(v.nota_fiscal)}" placeholder="Opcional"></label>
         <div class="escolha" id="boxNovo"><span>Este cliente é:</span>
           <div class="seg">
@@ -417,9 +418,12 @@ function telaLancar() {
           </div>
         </div>
       </div>
+      <div class="itens-titulo">${l ? 'Item' : 'Itens do pedido'}</div>
+      <div id="itens"></div>
+      ${l ? '' : '<button type="button" class="sec" id="btnAddItem">+ Adicionar outro item</button>'}
       <div class="preview" id="previa"></div>
       <div class="botoes">
-        <button class="prim" type="submit">${l ? 'Salvar alterações' : 'Lançar'}</button>
+        <button class="prim" type="submit">${l ? 'Salvar alterações' : 'Lançar pedido'}</button>
         ${l ? '<button class="sec" type="button" id="btnCancelarEdicao">Cancelar</button>' : ''}
       </div>
       <div id="msgVenda"></div>
@@ -428,58 +432,87 @@ function telaLancar() {
   <p class="peq">Cliente novo é quem nunca comprou da BMundi. O bônus vale só no primeiro pedido faturado e entregue, e tem um limite por linha para a equipe toda.</p>`;
 }
 
-function atualizarVinhos(selecionado) {
-  const cfg = LINHA_FORM[$('#fLinha').value];
-  $('#fVinho').innerHTML = cfg.uvas.map(w => `<option ${w === selecionado ? 'selected' : ''}>${esc(w)}</option>`).join('');
+function adicionarItem(linhaId, uva, caixas) {
+  const div = document.createElement('div');
+  div.className = 'item';
+  div.innerHTML = `
+    <label>Linha <select class="iLinha">${LINHAS_FORM.map(c => `<option value="${c.id}" ${c.id === (linhaId || 'reserva') ? 'selected' : ''}>${c.nome}</option>`).join('')}</select></label>
+    <label>Uva <select class="iUva"></select></label>
+    <label>Caixas (6 garrafas) <input type="number" class="iCaixas" min="0.5" step="0.5" value="${caixas ? esc(caixas) : ''}"></label>
+    <button type="button" class="link iRemover" title="Remover item">remover</button>`;
+  $('#itens').appendChild(div);
+  const preencherUvas = sel => { div.querySelector('.iUva').innerHTML = LINHA_FORM[div.querySelector('.iLinha').value].uvas.map(w => `<option ${w === sel ? 'selected' : ''}>${esc(w)}</option>`).join(''); };
+  preencherUvas(uva);
+  div.querySelector('.iLinha').onchange = () => { preencherUvas(); atualizarPrevia(); };
+  div.querySelector('.iCaixas').addEventListener('input', atualizarPrevia);
+  div.querySelector('.iRemover').onclick = () => { div.remove(); atualizarRemover(); atualizarPrevia(); };
+  atualizarRemover();
+}
+
+function atualizarRemover() {
+  const itens = document.querySelectorAll('#itens .item');
+  itens.forEach(it => it.querySelector('.iRemover').classList.toggle('oculto', itens.length < 2));
+}
+
+function itensDoForm() {
+  return [...document.querySelectorAll('#itens .item')].map(it => {
+    const f = LINHA_FORM[it.querySelector('.iLinha').value];
+    return { form: f, cfg: LINHA[f.grupo], uva: it.querySelector('.iUva').value, caixas: Number(it.querySelector('.iCaixas').value) || 0 };
+  });
 }
 
 function origemEscolhida() { const r = document.querySelector('input[name="fOrigem"]:checked'); return r ? r.value : null; }
 
 function atualizarPrevia() {
-  const cfg = LINHA[LINHA_FORM[$('#fLinha').value].grupo];
-  const cx = Number($('#fCaixas').value) || 0;
   const devol = $('#fTipo').value === 'devolucao';
   $('#boxNovo').classList.toggle('oculto', devol);
-  const pts = cx * cfg.pontos;
-  const valor = cx * CAMPANHA.garrafasPorCaixa * cfg.preco;
-  let txt = devol
+  const itens = itensDoForm().filter(i => i.caixas > 0);
+  if (!itens.length) { $('#previa').innerHTML = 'Preencha as caixas para ver quanto o pedido vale.'; return; }
+  let pts = 0, valor = 0;
+  const linhas = itens.map(i => {
+    const p = i.caixas * i.cfg.pontos, r = i.caixas * CAMPANHA.garrafasPorCaixa * i.cfg.preco;
+    pts += p; valor += r;
+    return `${fmtCx(i.caixas)} cx ${esc(i.form.nome)} ${esc(i.uva)}: ${fmtNum(p)} pts`;
+  });
+  let txt = (itens.length > 1 ? linhas.join('<br>') + '<br>' : '') + (devol
     ? `Esta devolução desconta <b>${fmtNum(pts)} pontos</b> e ${fmtR$(valor)}.`
-    : `Esta venda vale <b>${fmtNum(pts)} pontos</b> (${fmtR$(valor)}).`;
-  if (!devol && origemEscolhida() === 'novo') txt += ` Como é cliente novo, pode somar até <b>${fmtNum(pts)} pontos extras</b>, se ainda houver bônus disponível na linha.`;
+    : `${itens.length > 1 ? 'Este pedido' : 'Esta venda'} vale <b>${fmtNum(pts)} pontos</b> (${fmtR$(valor)}).`);
+  if (!devol && origemEscolhida() === 'novo') txt += ` Como é cliente novo, pode somar até <b>${fmtNum(pts)} pontos extras</b>, se ainda houver bônus disponível.`;
   $('#previa').innerHTML = txt;
 }
 
 async function salvarVenda(ev) {
   ev.preventDefault();
   const msg = $('#msgVenda');
-  const reg = {
+  const base = {
     tipo: $('#fTipo').value,
     data: $('#fData').value,
     cliente: $('#fCliente').value.trim(),
-    linha: LINHA_FORM[$('#fLinha').value].grupo,
-    vinho: LINHA_FORM[$('#fLinha').value].prefixo + $('#fVinho').value,
-    caixas: Number($('#fCaixas').value),
     nota_fiscal: $('#fNota').value.trim(),
   };
   const origem = origemEscolhida();
-  reg.cliente_novo = reg.tipo === 'venda' && origem === 'novo';
-  if (reg.data < CAMPANHA.inicio || reg.data > CAMPANHA.fim) { msg.innerHTML = '<div class="msg erro">A data precisa estar dentro do período da campanha (25/11/2026 a 28/02/2027).</div>'; return; }
-  if (!(reg.caixas > 0)) { msg.innerHTML = '<div class="msg erro">Informe a quantidade de caixas.</div>'; return; }
-  if (reg.tipo === 'venda' && !origem) { msg.innerHTML = '<div class="msg erro">Marque se é cliente da carteira ou cliente novo.</div>'; return; }
-  if (reg.cliente_novo) {
+  base.cliente_novo = base.tipo === 'venda' && origem === 'novo';
+  const itens = itensDoForm();
+  if (base.data < CAMPANHA.inicio || base.data > CAMPANHA.fim) { msg.innerHTML = '<div class="msg erro">A data precisa estar dentro do período da campanha (25/11/2026 a 28/02/2027).</div>'; return; }
+  if (!base.cliente) { msg.innerHTML = '<div class="msg erro">Informe o cliente.</div>'; return; }
+  if (!itens.length || itens.some(i => !(i.caixas > 0))) { msg.innerHTML = '<div class="msg erro">Informe a quantidade de caixas de cada item.</div>'; return; }
+  if (base.tipo === 'venda' && !origem) { msg.innerHTML = '<div class="msg erro">Marque se é cliente da carteira ou cliente novo.</div>'; return; }
+  if (base.cliente_novo) {
     const nome = t => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ');
-    const repetido = estado.lancamentos.some(x => x.cliente_novo && x.id !== estado.editando && x.linha === reg.linha && nome(x.cliente) === nome(reg.cliente));
-    if (repetido) { msg.innerHTML = '<div class="msg erro">Este cliente já foi lançado como cliente novo nesta linha. O bônus vale só no primeiro pedido.</div>'; return; }
+    const grupos = [...new Set(itens.map(i => i.form.grupo))];
+    const repetido = estado.lancamentos.some(x => x.cliente_novo && x.id !== estado.editando && grupos.includes(x.linha) && nome(x.cliente) === nome(base.cliente));
+    if (repetido) { msg.innerHTML = '<div class="msg erro">Este cliente já foi lançado como cliente novo em uma dessas linhas. O bônus vale só no primeiro pedido.</div>'; return; }
   }
+  const regs = itens.map(i => ({ ...base, linha: i.form.grupo, vinho: i.form.prefixo + i.uva, caixas: i.caixas }));
   try {
-    if (estado.editando) await banco.atualizar(estado.editando, reg);
-    else await banco.inserir(reg);
+    if (estado.editando) await banco.atualizar(estado.editando, regs[0]);
+    else await banco.inserirVarios(regs);
     const editou = !!estado.editando;
     estado.editando = null;
     await recarregar();
     estado.aba = 'lancar';
     render();
-    $('#msgVenda').innerHTML = `<div class="msg ok">${editou ? 'Lançamento atualizado.' : 'Venda lançada.'}</div>`;
+    $('#msgVenda').innerHTML = `<div class="msg ok">${editou ? 'Lançamento atualizado.' : regs.length > 1 ? `Pedido lançado com ${regs.length} itens.` : 'Venda lançada.'}</div>`;
   } catch (e) {
     msg.innerHTML = `<div class="msg erro">Não foi possível salvar: ${esc(e.message)}</div>`;
   }
@@ -663,9 +696,8 @@ function ligarEventos() {
   document.querySelectorAll('[data-aba]').forEach(b => b.onclick = () => { estado.aba = b.dataset.aba; if (estado.aba !== 'lancar') estado.editando = null; render(); });
   if ($('#formVenda')) {
     const l = estado.editando ? estado.lancamentos.find(x => x.id === estado.editando) : null;
-    atualizarVinhos(l ? uvaDe(l) : null);
-    $('#fLinha').onchange = () => { atualizarVinhos(); atualizarPrevia(); };
-    ['#fCaixas','#fTipo'].forEach(s => $(s).addEventListener('input', atualizarPrevia));
+    if (l) adicionarItem(linhaFormDe(l).id, uvaDe(l), l.caixas); else adicionarItem();
+    if ($('#btnAddItem')) $('#btnAddItem').onclick = () => { adicionarItem(); atualizarPrevia(); };
     document.querySelectorAll('input[name="fOrigem"]').forEach(r => r.addEventListener('change', () => { $('#msgVenda').innerHTML = ''; atualizarPrevia(); }));
     $('#fTipo').addEventListener('change', atualizarPrevia);
     atualizarPrevia();
