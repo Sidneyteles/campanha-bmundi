@@ -400,7 +400,7 @@ function telaLancar() {
   const v = l || { data: hojeISO(), cliente:'', tipo:'venda', nota_fiscal:'', cliente_novo:false };
   return `<div class="card">
     <h2>${l ? 'Editar lançamento' : 'Lançar pedido'}</h2>
-    <p class="nota">${l ? 'Você está editando um item de um pedido.' : 'Lance cada pedido faturado. Se o pedido tiver mais de um vinho da campanha, use "Adicionar outro item".'} Devoluções entram como lançamento próprio e descontam os pontos.</p>
+    <p class="nota">${l ? 'Você está editando um item de um pedido. Se faltou algum vinho neste pedido, use "Adicionar outro item".' : 'Lance cada pedido faturado. Se o pedido tiver mais de um vinho da campanha, use "Adicionar outro item".'} Devoluções entram como lançamento próprio e descontam os pontos.</p>
     <form id="formVenda">
       <div class="campos">
         <label>Tipo
@@ -418,9 +418,9 @@ function telaLancar() {
           </div>
         </div>
       </div>
-      <div class="itens-titulo">${l ? 'Item' : 'Itens do pedido'}</div>
+      <div class="itens-titulo">Itens do pedido</div>
       <div id="itens"></div>
-      ${l ? '' : '<button type="button" class="sec" id="btnAddItem">+ Adicionar outro item</button>'}
+      <button type="button" class="sec" id="btnAddItem">+ Adicionar outro item</button>
       <div class="preview" id="previa"></div>
       <div class="botoes">
         <button class="prim" type="submit">${l ? 'Salvar alterações' : 'Lançar pedido'}</button>
@@ -451,7 +451,7 @@ function adicionarItem(linhaId, uva, caixas) {
 
 function atualizarRemover() {
   const itens = document.querySelectorAll('#itens .item');
-  itens.forEach(it => it.querySelector('.iRemover').classList.toggle('oculto', itens.length < 2));
+  itens.forEach((it, i) => it.querySelector('.iRemover').classList.toggle('oculto', itens.length < 2 || (estado.editando && i === 0)));
 }
 
 function itensDoForm() {
@@ -505,14 +505,16 @@ async function salvarVenda(ev) {
   }
   const regs = itens.map(i => ({ ...base, linha: i.form.grupo, vinho: i.form.prefixo + i.uva, caixas: i.caixas }));
   try {
-    if (estado.editando) await banco.atualizar(estado.editando, regs[0]);
-    else await banco.inserirVarios(regs);
+    if (estado.editando) {
+      if (regs.length > 1) await banco.inserirVarios(regs.slice(1));
+      await banco.atualizar(estado.editando, regs[0]);
+    } else await banco.inserirVarios(regs);
     const editou = !!estado.editando;
     estado.editando = null;
     await recarregar();
     estado.aba = 'lancar';
     render();
-    $('#msgVenda').innerHTML = `<div class="msg ok">${editou ? 'Lançamento atualizado.' : regs.length > 1 ? `Pedido lançado com ${regs.length} itens.` : 'Venda lançada.'}</div>`;
+    $('#msgVenda').innerHTML = `<div class="msg ok">${editou ? (regs.length > 1 ? `Lançamento atualizado e ${regs.length - 1} item(ns) adicionado(s) ao pedido.` : 'Lançamento atualizado.') : regs.length > 1 ? `Pedido lançado com ${regs.length} itens.` : 'Venda lançada.'}</div>`;
   } catch (e) {
     msg.innerHTML = `<div class="msg erro">Não foi possível salvar: ${esc(e.message)}</div>`;
   }
